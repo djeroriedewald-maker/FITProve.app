@@ -1,23 +1,13 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import App from "./App";
+import "./index.css";
 
-import './index.css';
-import App from './App';
-
-// Optional providers – keep the ones you use:
-import { AuthProvider } from './store/auth';
-import { AppStateProvider } from './store/appState';
-// If you don’t have AppStateProvider, you can remove it from the tree below.
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
+ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <AppStateProvider>
-          <App />
-        </AppStateProvider>
-      </AuthProvider>
+      <App />
     </BrowserRouter>
   </React.StrictMode>
 );
