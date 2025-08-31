@@ -1,0 +1,123 @@
+{
+  "common": {
+    "app": "FITProve.app",
+    "close": "Close",
+    "you": "you"
+  },
+
+  "nav": {
+    "home": "Home",
+    "challenges": "Challenges",
+    "badges": "Badges",
+    "schedule": "Schedule",
+    "agenda": "Schedule",
+    "feed": "News Feed"
+  },
+
+  "auth": {
+    "unknownUser": "Unknown user",
+    "noEmail": "No e-mail known"
+  },
+
+  "metrics": {
+    "calories": "Calories",
+    "steps": "Steps",
+    "workoutTime": "Workout time",
+    "heartRate": "Heart rate"
+  },
+  "METRICS": {
+    "CALORIES": "Calories",
+    "STEPS": "Steps",
+    "WORKOUTTIME": "Workout time",
+    "HEARTRATE": "Heart rate"
+  },
+
+  "home": {
+    "todayDate": "Today, {date}",
+    "welcomeBack": "Welcome back, {name}",
+
+    "banner": {
+      "title": "Need a hand?",
+      "body": "Let the AI Coach build a 15-min routine based on your focus.",
+      "quick15": "Quick 15’",
+      "cta": "Open Coach"
+    },
+
+    "dailyProgress": {
+      "title": "Daily Progress",
+      "move": "Move goal",
+      "workout": "Workout goal",
+      "water": "Water intake"
+    },
+
+    "suggestions": {
+      "title": "Smart Suggestions",
+      "a": "Drink a glass of water",
+      "b": "Stretch for 5 minutes",
+      "c": "Try a quick full-body routine",
+      "d": "Take a brisk 10-min walk",
+      "e": "Do 20 squats",
+      "f": "1-min box breathing"
+    },
+
+    "nextUp": {
+      "title": "Next up",
+      "sample": "Workout — upper body"
+    },
+
+    "streak": {
+      "header": "Your Streak",
+      "newBadge": "New Badge Unlocked!",
+      "keepGoing": "Keep going to earn more"
+    },
+
+    "streaks": {
+      "analysis": {
+        "title": "Streak Analysis (last {days} days)",
+        "lastNDays": "Last {days} days",
+        "current": "Current streak",
+        "longest": "Longest streak",
+        "adherence": "Adherence",
+        "keepItUp": "Try not to break your streak!",
+        "quickStart": "Quick Start"
+      }
+    },
+
+    "quickActions": {
+      "title": "Quick Actions"
+    }
+  },
+
+  "actions": {
+    "startWorkout": "Start Workout",
+    "logWater": "Log Water",
+    "addNote": "Add Note"
+  },
+
+  "coach": {
+    "welcome": "Hi! I'm your AI Coach — how can I help today?",
+    "input": {
+      "placeholder": "Ask the coach anything..."
+    },
+    "send": "Send"
+  },
+
+  "modules": {
+    "workout": "Workout",
+    "workoutGenerator": "Workout Generator",
+    "stretching": "Stretching",
+    "recovering": "Recovery",
+    "mindset": "Mindset",
+    "diet": "Diet",
+    "waterIntake": "Water intake"
+  },
+
+  "hydration": {
+    "title": "Hydration",
+    "amount": "Water (ml)",
+    "add": "Add water"
+  },
+
+  "home.dailyProgress.title": "Daily Progress",
+  "home.dailyProgress": "Daily Progress"
+}

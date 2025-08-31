@@ -1,0 +1,131 @@
+/* Tailwind layers */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------- App basis ---------- */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+.container {
+  max-width: 960px;
+}
+
+/* ---------- Kaarten in FITProve-stijl ---------- */
+.card {
+  @apply bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800;
+}
+
+.card-pad {
+  @apply p-4 md:p-5;
+}
+
+/* Zachte schaduw */
+.shadow-soft {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* ---------- Typografie (leesbaarheid in dark mode!) ---------- */
+/* Sectietitel (gebruik in je components als: className="section-title") */
+.section-title,
+.card h3,
+.card header h3 {
+  @apply text-lg font-semibold leading-tight text-neutral-900 dark:text-neutral-100;
+}
+
+/* Subtitel/description in kaarten (className="subtle") */
+.subtle,
+.card .subtle,
+.card p.text-muted,
+.text-muted {
+  @apply text-sm text-neutral-600 dark:text-neutral-300;
+}
+
+/* Kleine labels onder iconen/metrics */
+.stat-label,
+.kpi-label,
+.badge-caption {
+  @apply text-xs font-medium text-neutral-700 dark:text-neutral-300;
+}
+
+/* Algemene tekstkleur in kaarten (fallback) */
+.card,
+.card * {
+  /* niets forceren op alles, alleen een zachte basis waar Tailwind classes ontbreken */
+}
+
+/* ---------- Progress bars ---------- */
+.progress {
+  @apply h-2 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-800;
+}
+.progress > .bar {
+  @apply h-full rounded-full;
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  @apply inline-flex items-center justify-center px-4 py-2 rounded-xl font-semibold transition;
+}
+.btn-neutral {
+  @apply bg-neutral-200 hover:bg-neutral-300 text-neutral-900;
+}
+.btn-dark {
+  @apply bg-neutral-800 hover:bg-neutral-700 text-white;
+}
+.btn-ghost {
+  @apply bg-transparent hover:bg-neutral-100 dark:hover:bg-neutral-800;
+}
+
+/* ---------- Quick actions container (zorg voor consistent spacing) ---------- */
+.quick-actions .btn {
+  @apply text-sm;
+}
+
+/* ---------- Chips/badges ---------- */
+.chip {
+  @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-neutral-100 text-neutral-700
+         dark:bg-neutral-800 dark:text-neutral-200;
+}
+
+/* ---------- Helpers voor layout ---------- */
+.row {
+  @apply flex items-center justify-between gap-3;
+}
+.col {
+  @apply flex flex-col gap-2;
+}
+
+/* ---------- Animaties ---------- */
+@keyframes slideUp {
+  from {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.animate-slideUp {
+  animation: slideUp 0.35s ease-out both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.35s ease-out both;
+}
+
+/* Stagger helpers (optioneel) */
+.stagger > * {
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
