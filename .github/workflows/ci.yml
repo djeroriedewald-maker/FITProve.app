@@ -7,6 +7,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,8 +18,9 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install
-        run: npm ci
+      # Gebruik npm install i.p.v. npm ci voor tolerantere installs
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
 
       - name: Lint (if present)
         run: npm run lint --if-present
