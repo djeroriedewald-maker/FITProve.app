@@ -2,15 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
-/* App globals */
-:root {
-  color-scheme: light dark;
+/* Light theme */
+:root{
+  --bg:#ffffff; --card:#ffffff; --border:#e5e7eb; --text:#0f172a; --subtle:#6b7280;
+  --brand:#ff6a00; --brand-fg:#111827;
 }
-
-html, body, #root {
-  height: 100%;
+/* Dark theme */
+.dark{
+  --bg:#0b1020; --card:#121b2f; --border:#1f2937; --text:#e5e7eb; --subtle:#9ca3af;
+  --brand:#ff7a1a; --brand-fg:#0b1020;
 }
-
-body {
-  @apply bg-white text-gray-900 dark:bg-neutral-900 dark:text-neutral-100;
-}
+html,body,#root{height:100%;background:var(--bg);color:var(--text)}
+.card{@apply rounded-2xl bg-card shadow-card border border-border}
+.pb-safe{padding-bottom:max(env(safe-area-inset-bottom),.75rem)}
