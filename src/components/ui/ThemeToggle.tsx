@@ -1,14 +1,25 @@
-import React from "react";
-import { Moon, Sun } from "lucide-react";
 import { useTheme } from "../../theme/ThemeProvider";
-const ThemeToggle:React.FC=()=>{
-  const {theme,toggle}=useTheme();
-  return(
-    <button aria-label="Toggle theme" onClick={toggle}
-      className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-sm bg-card hover:opacity-90 transition">
-      {theme==="dark"?<Sun className="w-4 h-4" />:<Moon className="w-4 h-4" />}
-      <span className="hidden sm:inline">{theme==="dark"?"Light":"Dark"}</span>
+import { Sun, Moon } from "lucide-react";
+
+export default function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+
+  const isDark = theme === "dark";
+
+  return (
+    <button
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      className="p-2 rounded-full transition-colors duration-200
+                 bg-gray-200 dark:bg-gray-700 
+                 hover:bg-gray-300 dark:hover:bg-gray-600
+                 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
+    >
+      {isDark ? (
+        <Sun className="w-5 h-5 text-yellow-400" />
+      ) : (
+        <Moon className="w-5 h-5 text-gray-800" />
+      )}
     </button>
   );
-};
-export default ThemeToggle;
+}
