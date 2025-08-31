@@ -1,10 +1,8 @@
 name: CI
 
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
 
 jobs:
   build:
@@ -19,14 +17,14 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install
         run: npm ci
 
-      - name: Lint
+      - name: Lint (if present)
         run: npm run lint --if-present
 
-      - name: Typecheck
+      - name: Typecheck (if present)
         run: npm run typecheck --if-present
 
       - name: Build
-        run: npm run build --if-present
+        run: npm run build
