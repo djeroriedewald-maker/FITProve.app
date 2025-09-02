@@ -1,5 +1,5 @@
+// src/routes/Home.tsx
 import React from "react";
-import AppShell from "../layout/AppShell";
 import KpiCard from "../components/ui/KpiCard";
 
 export default function Home() {
@@ -18,7 +18,7 @@ export default function Home() {
   ];
 
   return (
-    <AppShell>
+    <>
       {/* HERO IMAGE — volle breedte, volledige afbeelding zichtbaar, geen tekst */}
       <figure className="mb-6">
         <img
@@ -51,6 +51,6 @@ export default function Home() {
           />
         ))}
       </section>
-    </AppShell>
+    </>
   );
 }
