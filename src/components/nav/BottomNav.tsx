@@ -1,30 +1,38 @@
-import React from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import { Home, Dumbbell, LineChart, Newspaper } from "lucide-react";
-const items=[
-  {to:"/",label:"Home",icon:Home},
-  {to:"/coach",label:"Coach",icon:Dumbbell},
-  {to:"/stats",label:"Stats",icon:LineChart},
-  {to:"/news",label:"News",icon:Newspaper},
-] as const;
-export default function BottomNav(){
-  const {pathname}=useLocation();
-  return(
-    <nav className="sticky bottom-0 inset-x-0 bg-card/90 backdrop-blur border-t border-border">
-      <ul className="grid grid-cols-4">
-        {items.map(it=>{
-          const Icon=it.icon; const active=pathname===it.to;
-          return(
-            <li key={it.to}>
-              <NavLink to={it.to} className="flex flex-col items-center justify-center py-3 text-xs"
-                aria-current={active?"page":undefined}>
-                <Icon className={`h-5 w-5 ${active?"text-brand":"text-subtle"}`} />
-                <span className={`${active?"text-brand":"text-subtle"}`}>{it.label}</span>
-              </NavLink>
-            </li>
-          );
-        })}
-      </ul>
+import { NavLink } from "react-router-dom";
+import { Home, Dumbbell, Activity, Newspaper } from "lucide-react";
+
+export default function BottomNav() {
+  const linkBase =
+    "flex flex-col items-center justify-center gap-1 w-1/4 py-2 text-xs transition-colors duration-150";
+  const active = "text-blue-600 dark:text-blue-400";
+  const inactive =
+    "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200";
+
+  const wrap =
+    "safe-bottom fixed bottom-0 inset-x-0 z-50 border-t backdrop-blur bg-white/90 dark:bg-neutral-900/80 border-neutral-200 dark:border-neutral-700 transition-colors duration-200";
+
+  const Item = (to: string, label: string, icon: JSX.Element) => (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        `${linkBase} ${isActive ? active : inactive}`
+      }
+    >
+      <div className="transition-transform duration-150 group-hover:scale-110">
+        {icon}
+      </div>
+      <span>{label}</span>
+    </NavLink>
+  );
+
+  return (
+    <nav className={wrap} role="navigation" aria-label="Bottom navigation">
+      <div className="mx-auto flex max-w-screen-sm">
+        {Item("/", "Home", <Home className="h-5 w-5" />)}
+        {Item("/coach", "Coach", <Dumbbell className="h-5 w-5" />)}
+        {Item("/stats", "Stats", <Activity className="h-5 w-5" />)}
+        {Item("/news", "News", <Newspaper className="h-5 w-5" />)}
+      </div>
     </nav>
   );
 }

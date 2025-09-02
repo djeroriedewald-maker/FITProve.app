@@ -1,18 +1,26 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: ["class"],
-  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  darkMode: 'class', // <- belangrijk: via .dark class
+  content: [
+    './index.html',
+    './src/**/*.{ts,tsx}',
+  ],
   theme: {
     extend: {
       colors: {
-        bg: "var(--bg)",
-        card: "var(--card)",
-        border: "var(--border)",
-        text: "var(--text)",
-        subtle: "var(--subtle)",
-        brand: { DEFAULT: "var(--brand)", fg: "var(--brand-fg)" }
+        brand: {
+          50:  '#eef6ff',
+          100: '#d9eaff',
+          200: '#bcd8ff',
+          300: '#90beff',
+          400: '#5ea0ff',
+          500: '#2f80ff',
+          600: '#1f66e6',
+          700: '#1a54bf',
+          800: '#194899',
+          900: '#173d7d',
+        },
       },
-      boxShadow: { card: "0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)" }
     },
   },
   plugins: [],

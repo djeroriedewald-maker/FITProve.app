@@ -1,38 +1,41 @@
 import React from "react";
-import ProgressCircle from "./ProgressCircle";
+import ProgressCircle from "@/components/ui/ProgressCircle";
 
 type KpiCardProps = {
+  icon: React.ReactNode;
   title: string;
   value: string | number;
-  unit?: string;
-  progress?: number; // 0-100
-  icon?: React.ReactNode; // optional decorative icon
+  percent?: number; // 0-100
+  footer?: string;
 };
 
 export default function KpiCard({
+  icon,
   title,
   value,
-  unit,
-  progress = 0,
-  icon,
+  percent,
+  footer,
 }: KpiCardProps) {
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm">
-      <div className="shrink-0 flex h-10 w-10 items-center justify-center rounded-full bg-orange-50 dark:bg-gray-800 text-orange-600">
-        {icon ?? <span className="text-lg">🏷️</span>}
+    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <div className="flex items-start gap-3">
+        <div className="mt-1 text-gray-600 dark:text-gray-300">{icon}</div>
+        <div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">{title}</div>
+          <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+            {value}
+          </div>
+          {footer && (
+            <div className="text-xs text-gray-500 dark:text-gray-400">{footer}</div>
+          )}
+        </div>
       </div>
 
-      <div className="flex-1">
-        <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
-        <p className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-          {value}
-          {unit ? <span className="ml-1 text-sm font-normal text-gray-500 dark:text-gray-400">{unit}</span> : null}
-        </p>
-      </div>
-
-      {typeof progress === "number" ? (
-        <ProgressCircle value={Math.max(0, Math.min(100, progress))} />
-      ) : null}
+      {typeof percent === "number" && (
+        <div className="ml-4">
+          <ProgressCircle value={percent} />
+        </div>
+      )}
     </div>
   );
 }

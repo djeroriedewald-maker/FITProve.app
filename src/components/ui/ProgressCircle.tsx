@@ -1,62 +1,40 @@
 import React from "react";
 
-type ProgressCircleProps = {
-  /** 0 - 100 */
-  value: number;
-  size?: number;
-  strokeWidth?: number;
-  className?: string;
-};
-
-export default function ProgressCircle({
-  value,
-  size = 48,
-  strokeWidth = 6,
-  className = "",
-}: ProgressCircleProps) {
-  const radius = (size - strokeWidth) / 2;
+export default function ProgressCircle({ value = 0 }: { value: number }) {
+  const clamped = Math.max(0, Math.min(100, value));
+  const radius = 22;
+  const stroke = 5;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (value / 100) * circumference;
+  const offset = circumference - (clamped / 100) * circumference;
 
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      className={className}
-      aria-label={`progress ${value}%`}
-      role="img"
-    >
+    <svg width="56" height="56" viewBox="0 0 56 56">
       <circle
-        cx={size / 2}
-        cy={size / 2}
+        cx="28"
+        cy="28"
         r={radius}
-        stroke="currentColor"
-        className="text-gray-200 dark:text-gray-700"
-        strokeWidth={strokeWidth}
-        fill="transparent"
+        strokeWidth={stroke}
+        className="fill-none stroke-gray-200 dark:stroke-gray-700"
       />
       <circle
-        cx={size / 2}
-        cy={size / 2}
+        cx="28"
+        cy="28"
         r={radius}
-        stroke="currentColor"
-        className="text-orange-500"
-        strokeWidth={strokeWidth}
-        fill="transparent"
+        strokeWidth={stroke}
+        className="fill-none stroke-blue-500 transition-[stroke-dashoffset] duration-300 ease-out"
         strokeDasharray={circumference}
         strokeDashoffset={offset}
         strokeLinecap="round"
-        transform={`rotate(-90 ${size/2} ${size/2})`}
+        transform="rotate(-90 28 28)"
       />
       <text
         x="50%"
         y="50%"
         dominantBaseline="central"
         textAnchor="middle"
-        className="fill-gray-800 dark:fill-gray-200 text-xs font-semibold"
+        className="text-xs fill-gray-700 dark:fill-gray-200"
       >
-        {value}%
+        {clamped}%
       </text>
     </svg>
   );
