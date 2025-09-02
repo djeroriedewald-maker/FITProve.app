@@ -1,39 +1,42 @@
-import React from "react";
-import { Routes, Route } from "react-router-dom";
+import React,{Suspense,lazy} from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import BottomNav from "./components/nav/BottomNav";
+import { ThemeProvider } from "./theme/ThemeProvider";
+import ThemeToggle from "./components/ui/ThemeToggle";
 
-import Home from "./routes/Home";
-import Coach from "./routes/Coach";
-import Stats from "./routes/Stats";
-import News from "./routes/News";
+const Home=lazy(()=>import("./routes/Home"));
+const Coach=lazy(()=>import("./routes/Coach"));
+const Stats=lazy(()=>import("./routes/Stats"));
+const News=lazy(()=>import("./routes/News"));
 
-import BottomNav from "./components/nav/BottomNav"; // ✅ zonder .tsx
-import ThemeToggle from "./components/ui/ThemeToggle"; // ✅ zonder .tsx
+export default function App(){
+  return(
+    <ThemeProvider>
+      <div className="min-h-dvh bg-bg text-text flex flex-col">
+        {/* Header zonder border */}
+        <header className="sticky top-0 z-10 bg-card/70 backdrop-blur">
+          <div className="mx-auto max-w-screen-sm px-4 py-3 flex items-center justify-between">
+            <div className="font-bold">FITProve.app</div>
+            <ThemeToggle/>
+          </div>
+        </header>
 
-function App() {
-  return (
-    <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
-      {/* Header */}
-      <header className="flex justify-between items-center p-4">
-        <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400">
-          FITProve.app
-        </h1>
-        <ThemeToggle />
-      </header>
+        <main className="mx-auto w-full max-w-screen-sm flex-1 px-4 py-4">
+          <Suspense fallback={<div>Loading…</div>}>
+            <Routes>
+              <Route path="/" element={<Home/>}/>
+              <Route path="/coach" element={<Coach/>}/>
+              <Route path="/stats" element={<Stats/>}/>
+              <Route path="/news" element={<News/>}/>
+              <Route path="*" element={<Navigate to="/" replace/>}/>
+            </Routes>
+          </Suspense>
+        </main>
 
-      {/* Routes */}
-      <main className="px-4 pb-20">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/coach" element={<Coach />} />
-          <Route path="/stats" element={<Stats />} />
-          <Route path="/news" element={<News />} />
-        </Routes>
-      </main>
-
-      {/* Bottom Navigation */}
-      <BottomNav />
-    </div>
+        <footer className="mx-auto w-full max-w-screen-sm pb-safe">
+          <BottomNav/>
+        </footer>
+      </div>
+    </ThemeProvider>
   );
 }
-
-export default App;

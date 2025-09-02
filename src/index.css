@@ -2,60 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Respecteer OS kleurenschema */
-:root {
-  color-scheme: light dark;
+/* ---------- Base: full-bleed background per theme ---------- */
+@layer base {
+  html, body, #root {
+    height: 100%;
+  }
+
+  /* Verwijder standaard margin die visueel als 'rand' kan ogen */
+  body {
+    margin: 0;
+  }
+
+  /* Page background kleuren (geen witte gutter in dark) */
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+  .dark body {
+    @apply bg-slate-950 text-gray-100;
+  }
 }
 
-html, body, #root {
-  height: 100%;
+/* ---------- Media elements: geen inline-image gap ---------- */
+img, svg, video, canvas {
+  display: block;
+  max-width: 100%;
 }
 
-body {
-  @apply bg-neutral-50 text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100 antialiased transition-colors duration-200;
-}
-
-/* Links */
-a {
-  @apply text-blue-600 dark:text-blue-400 transition-colors duration-150;
-}
-a:hover {
-  @apply underline;
-}
-
-/* Kaarten */
-.card {
-  @apply rounded-xl border bg-white/95 shadow-sm backdrop-blur
-         border-neutral-200 dark:border-neutral-700
-         dark:bg-neutral-800/90
-         transition-all duration-150 ease-in-out;
-}
-.card:hover {
-  @apply shadow-md scale-[1.01];
-}
-
-/* Muted text */
-.muted {
-  @apply text-neutral-600 dark:text-neutral-300;
-}
-.muted-2 {
-  @apply text-neutral-500 dark:text-neutral-400;
-}
-
-/* Safe area voor iOS */
-.safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-/* Progress ring track */
-.progress-track {
-  stroke: theme('colors.neutral.200');
-}
-.dark .progress-track {
-  stroke: theme('colors.neutral.700');
-}
-
-/* Focus visible states */
-*:focus-visible {
-  @apply outline-none ring-2 ring-blue-500 dark:ring-blue-400 rounded-md;
+/* ---------- (Optioneel) Card utility, gebruikt door componenten ---------- */
+@layer components {
+  .card-base {
+    @apply rounded-2xl border border-transparent shadow-sm shadow-black/5 dark:shadow-black/20;
+    @apply bg-white dark:bg-slate-900;
+  }
 }

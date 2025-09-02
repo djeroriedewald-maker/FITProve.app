@@ -1,15 +1,23 @@
+import { NEWS_FEED } from "../data/news";
+import ArticleCard from "../components/ui/ArticleCard";
+
 export default function News() {
   return (
-    <div>
-      <h2 className="text-xl font-bold mb-4">News</h2>
-      <article className="p-4 border rounded mb-4">
-        <h3 className="font-semibold">HIIT boosts VO₂ max</h3>
-        <p>3x/week HIIT improves aerobic capacity vs steady cardio.</p>
-      </article>
-      <article className="p-4 border rounded">
-        <h3 className="font-semibold">Strength training tips</h3>
-        <p>Progressive overload is key to long-term results.</p>
-      </article>
-    </div>
+    <main className="mx-auto w-full max-w-screen-md px-4 py-6 sm:py-8">
+      <header className="mb-4 sm:mb-6">
+        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+          News
+        </h1>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Latest training, nutrition and recovery insights.
+        </p>
+      </header>
+
+      <section className="grid gap-4 sm:gap-6">
+        {NEWS_FEED.map((n) => (
+          <ArticleCard key={n.id} item={n} />
+        ))}
+      </section>
+    </main>
   );
 }
