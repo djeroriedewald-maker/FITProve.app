@@ -1,13 +1,15 @@
+// src/layout/AppShell.tsx
 import React from "react";
 import { Link } from "react-router-dom";
 import BottomNav from "../components/nav/BottomNav";
+import ThemeToggle from "../components/ui/ThemeToggle";
 
 /**
  * AppShell
- * - Geen eigen achtergrond/border/rounded -> full-bleed page bg komt uit body/#root (index.css)
+ * - Full-bleed page bg via body/#root (index.css)
  * - Header: transparant + blur, zonder borders
- * - Main: centrale contentbreedte, padding onder ivm bottom nav
- * - ThemeToggle bewust niet hier om dubbele knop te voorkomen
+ * - Main: centrale contentbreedte, extra bottom padding voor nav
+ * - ThemeToggle: rechtsboven in header
  */
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -15,10 +17,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Header */}
       <header className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-black/5 bg-transparent">
         <div className="mx-auto w-full max-w-3xl px-4 py-3 flex items-center justify-between">
-          <Link to="/" className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <Link
+            to="/"
+            className="text-sm font-semibold text-gray-900 dark:text-gray-100"
+          >
             FITProve.app
           </Link>
-          {/* ThemeToggle staat elders, niet hier */}
+          <ThemeToggle />
         </div>
       </header>
 
