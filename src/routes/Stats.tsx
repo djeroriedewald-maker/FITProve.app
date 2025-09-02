@@ -1,18 +1,16 @@
-import { Dumbbell, Flame, HeartPulse, Timer } from "lucide-react";
+import React from "react";
 
-type Tile = {
+type Stat = {
   id: string;
   label: string;
-  value: string;
-  icon: any;
-  note?: string;
+  value: string | number;
 };
 
-const TILES: Tile[] = [
-  { id: "t1", label: "Calories", value: "450 kcal", icon: Flame, note: "45%" },
-  { id: "t2", label: "Workout time", value: "45 min", icon: Timer, note: "60%" },
-  { id: "t3", label: "Heart rate", value: "145 bpm", icon: HeartPulse, note: "72%" },
-  { id: "t4", label: "Strength", value: "5 x 5", icon: Dumbbell, note: "80%" },
+const STATS: Stat[] = [
+  { id: "calories", label: "Calories", value: "450 kcal" },
+  { id: "workout", label: "Workout time", value: "45 min" },
+  { id: "heartrate", label: "Heart rate", value: "145 bpm" },
+  { id: "strength", label: "Strength", value: "5x5" },
 ];
 
 export default function Stats() {
@@ -23,26 +21,22 @@ export default function Stats() {
           Stats
         </h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Quick overview of your latest workout metrics.
+          Overview of your recent training performance.
         </p>
       </header>
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-        {TILES.map((t) => (
+      <section className="grid gap-4 sm:grid-cols-2">
+        {STATS.map((stat) => (
           <div
-            key={t.id}
-            className="rounded-2xl border border-black/5 dark:border-white/5 bg-white dark:bg-zinc-900 p-3 sm:p-4 shadow-sm"
+            key={stat.id}
+            className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
           >
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">{t.label}</span>
-              <t.icon className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
-            </div>
-            <div className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              {t.value}
-            </div>
-            {t.note && (
-              <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{t.note}</div>
-            )}
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              {stat.label}
+            </p>
+            <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              {stat.value}
+            </p>
           </div>
         ))}
       </section>
