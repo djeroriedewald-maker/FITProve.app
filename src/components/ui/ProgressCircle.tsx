@@ -1,90 +1,59 @@
 import React from "react";
 
-type Props = {
-  /** 0..100 */
-  value: number;
-  /** Diameter in px */
-  size?: number;
-  /** Stroke in px */
-  strokeWidth?: number;
-  /** Eigen label; standaard wordt het percentage getoond */
-  label?: string | number;
-  /** Formatter voor het label, krijgt de ‘clamped’ value (0..100) */
-  formatLabel?: (v: number) => string;
-  /** Extra className voor de <svg> wrapper */
-  className?: string;
+type ProgressCircleProps = {
+  value: number; // tussen 0 en 100
+  size?: number; // diameter in px
+  strokeWidth?: number; // breedte van de lijn
 };
 
 export default function ProgressCircle({
   value,
-  size = 48,
+  size = 60,
   strokeWidth = 6,
-  label,
-  formatLabel = (v) => `${Math.round(v)}%`,
-  className = "",
-}: Props) {
-  // 0..100 forceren
-  const pct = Math.max(0, Math.min(100, value));
-
-  // geometrie
-  const r = (size - strokeWidth) / 2;
-  const c = 2 * Math.PI * r;
-  const dashOffset = c * (1 - pct / 100);
-
-  // label in het midden
-  const centerLabel =
-    label !== undefined && label !== null ? String(label) : formatLabel(pct);
-  const fontSize = Math.max(10, Math.round(size * 0.32)); // schaalbaar, maar leesbaar
+}: ProgressCircleProps) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (value / 100) * circumference;
 
   return (
     <svg
       width={size}
       height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      role="img"
-      aria-label={`${pct}%`}
-      className={className}
+      className="text-orange-500 dark:text-orange-400"
+      aria-label={`Progress: ${value}%`}
     >
-      {/* basisring */}
+      {/* Achtergrondcirkel */}
       <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        fill="none"
-        strokeWidth={strokeWidth}
-        className="text-gray-200 dark:text-gray-800"
         stroke="currentColor"
-      />
-
-      {/* progressring */}
-      <circle
+        className="opacity-20"
+        fill="transparent"
+        strokeWidth={strokeWidth}
+        r={radius}
         cx={size / 2}
         cy={size / 2}
-        r={r}
-        fill="none"
+      />
+      {/* Voorgrondcirkel */}
+      <circle
+        stroke="currentColor"
+        fill="transparent"
         strokeWidth={strokeWidth}
         strokeLinecap="round"
-        className="text-orange-500 dark:text-orange-400"
-        stroke="currentColor"
-        style={{
-          strokeDasharray: c,
-          strokeDashoffset: dashOffset,
-          transform: "rotate(-90deg)",
-          transformOrigin: "50% 50%",
-          transition: "stroke-dashoffset .4s ease",
-        }}
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        r={radius}
+        cx={size / 2}
+        cy={size / 2}
+        className="transition-all duration-500 ease-out"
       />
-
-      {/* label in het midden */}
+      {/* Tekst in het midden */}
       <text
         x="50%"
         y="50%"
-        dy="0.35em"
+        dominantBaseline="middle"
         textAnchor="middle"
-        fontSize={fontSize}
-        className="fill-gray-800 dark:fill-gray-100 font-semibold"
+        className="text-xs font-medium fill-current text-zinc-900 dark:text-zinc-50"
       >
-        {centerLabel}
+        {value}%
       </text>
     </svg>
   );
