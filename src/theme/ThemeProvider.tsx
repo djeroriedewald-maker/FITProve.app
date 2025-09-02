@@ -1,48 +1,45 @@
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  ReactNode,
-} from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
-
 type ThemeContextType = {
   theme: Theme;
-  toggleTheme: () => void;
+  setTheme: (theme: Theme) => void;
+  toggle: () => void; // toegevoegd voor ThemeToggle
 };
 
+const STORAGE_KEY = "fitprove-theme";
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export default function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(
-    (localStorage.getItem("theme") as Theme) || "light"
-  );
+export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [theme, setTheme] = useState<Theme>(() => {
+    const saved = window.localStorage.getItem(STORAGE_KEY) as Theme | null;
+    if (saved) return saved;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
 
   useEffect(() => {
-    const root = window.document.documentElement;
+    const root = document.documentElement;
     if (theme === "dark") {
       root.classList.add("dark");
     } else {
       root.classList.remove("dark");
     }
-    localStorage.setItem("theme", theme);
+    window.localStorage.setItem(STORAGE_KEY, theme);
   }, [theme]);
 
-  const toggleTheme = () => {
-    setTheme(theme === "light" ? "dark" : "light");
+  const toggle = () => {
+    setTheme(theme === "dark" ? "light" : "dark");
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, toggle }}>
       {children}
     </ThemeContext.Provider>
   );
-}
+};
 
-export function useTheme() {
+export const useTheme = () => {
   const context = useContext(ThemeContext);
-  if (!context) throw new Error("useTheme must be used inside ThemeProvider");
+  if (!context) throw new Error("useTheme must be used within a ThemeProvider");
   return context;
-}
+};

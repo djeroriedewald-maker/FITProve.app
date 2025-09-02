@@ -1,41 +1,54 @@
 import React from "react";
-import ProgressCircle from "@/components/ui/ProgressCircle";
+import ProgressCircle from "./ProgressCircle";
 
-type KpiCardProps = {
-  icon: React.ReactNode;
+type Props = {
   title: string;
-  value: string | number;
-  percent?: number; // 0-100
-  footer?: string;
+  value: number | string;
+  unit?: string;
+  progress: number;
+  icon?: React.ReactNode;
 };
 
-export default function KpiCard({
-  icon,
-  title,
-  value,
-  percent,
-  footer,
-}: KpiCardProps) {
+export default function KpiCard({ title, value, unit, progress, icon }: Props) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-      <div className="flex items-start gap-3">
-        <div className="mt-1 text-gray-600 dark:text-gray-300">{icon}</div>
-        <div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">{title}</div>
-          <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-            {value}
-          </div>
-          {footer && (
-            <div className="text-xs text-gray-500 dark:text-gray-400">{footer}</div>
-          )}
+    <article
+      className={[
+        // layout
+        "flex items-center justify-between gap-4",
+        "rounded-2xl p-4",
+        // backgrounds (no white borders in dark)
+        "bg-white dark:bg-slate-900",
+        // borders removed (transparent in both themes)
+        "border border-transparent",
+        // soft shadow both themes (no visible white edge)
+        "shadow-sm shadow-black/5 dark:shadow-black/20",
+      ].join(" ")}
+      aria-label={title}
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className={[
+            "flex h-10 w-10 items-center justify-center",
+            "rounded-xl",
+            "bg-orange-50 dark:bg-orange-500/10",
+          ].join(" ")}
+          aria-hidden="true"
+        >
+          <span className="text-xl leading-none">{icon}</span>
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+            {title}
+          </h3>
+          <p className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+            {value} {unit}
+          </p>
         </div>
       </div>
 
-      {typeof percent === "number" && (
-        <div className="ml-4">
-          <ProgressCircle value={percent} />
-        </div>
-      )}
-    </div>
+      <div className="shrink-0">
+        <ProgressCircle value={progress} />
+      </div>
+    </article>
   );
 }
