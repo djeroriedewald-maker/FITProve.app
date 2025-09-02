@@ -13,12 +13,14 @@ import {
   Target,
 } from "lucide-react";
 
+type Filter = "today" | "week" | "month" | "all";
+
 type Kpi = {
   id: string;
   title: string;
   value: string | number;
   icon: React.ReactNode;
-  group?: "today" | "week" | "month";
+  group?: Exclude<Filter, "all">; // today | week | month
 };
 
 const ALL_KPIS: Kpi[] = [
@@ -40,18 +42,18 @@ const ALL_KPIS: Kpi[] = [
   { id: "k14", title: "Sleep avg (month)", value: "7 h 05 m", icon: <Moon className="h-5 w-5" />, group: "month" },
 ];
 
-const FILTERS = [
-  { id: "today", label: "Today" as const },
-  { id: "week", label: "Week" as const },
-  { id: "month", label: "Month" as const },
-  { id: "all", label: "All" as const },
+// Typ hier de union voor id expliciet
+const FILTERS: Array<{ id: Filter; label: string }> = [
+  { id: "today", label: "Today" },
+  { id: "week", label: "Week" },
+  { id: "month", label: "Month" },
+  { id: "all", label: "All" },
 ];
 
 export default function Stats() {
-  const [filter, setFilter] = React.useState<"today" | "week" | "month" | "all">("all");
+  const [filter, setFilter] = React.useState<Filter>("all");
 
-  const items =
-    filter === "all" ? ALL_KPIS : ALL_KPIS.filter((k) => (k.group ?? "today") === filter);
+  const items = filter === "all" ? ALL_KPIS : ALL_KPIS.filter((k) => (k.group ?? "today") === filter);
 
   return (
     <main className="mx-auto w-full max-w-screen-md px-4 py-6 sm:py-8">
@@ -64,14 +66,14 @@ export default function Stats() {
         </p>
       </header>
 
-      {/* Simple filter pills */}
+      {/* Filter pills */}
       <div className="mb-4 flex flex-wrap gap-2">
         {FILTERS.map((f) => {
           const active = filter === f.id;
           return (
             <button
               key={f.id}
-              onClick={() => setFilter(f.id)}
+              onClick={() => setFilter(f.id)} // <-- nu type-safe
               className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
                 active
                   ? "bg-orange-600 text-white dark:bg-orange-500"
@@ -84,7 +86,7 @@ export default function Stats() {
         })}
       </div>
 
-      {/* KPI grid – compacte stijl zoals op Home */}
+      {/* KPI grid – compact */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {items.map((k) => (
           <div
