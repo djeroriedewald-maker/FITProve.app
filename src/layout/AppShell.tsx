@@ -3,13 +3,14 @@ import React from "react";
 import { Link } from "react-router-dom";
 import BottomNav from "../components/nav/BottomNav";
 import ThemeToggle from "../components/ui/ThemeToggle";
+import UserButton from "../components/auth/UserButton";
 
 /**
  * AppShell
  * - Full-bleed page bg via body/#root (index.css)
  * - Header: transparant + blur, zonder borders
  * - Main: centrale contentbreedte, extra bottom padding voor nav
- * - ThemeToggle: rechtsboven in header
+ * - Header rechts: UserButton (login/profiel) links van de ThemeToggle
  */
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -23,7 +24,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           >
             FITProve.app
           </Link>
-          <ThemeToggle />
+
+          {/* Rechts: eerst UserButton, dan ThemeToggle */}
+          <div className="flex items-center gap-2">
+            <UserButton />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
