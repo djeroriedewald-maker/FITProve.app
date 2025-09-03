@@ -1,91 +1,118 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import type { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabaseClient';
+// src/context/AuthProvider.tsx
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import type { Session, User } from "@supabase/supabase-js";
+import { supabase } from "../lib/supabaseClient";
 
-type Profile = {
-  id: string;
-  username: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
-};
+type OAuthProvider = "google" | "apple";
 
-type AuthContextType = {
+type AuthContextValue = {
   user: User | null;
-  profile: Profile | null;
+  session: Session | null;
   loading: boolean;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<void>;
+  signInWithOAuth: (provider: OAuthProvider) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  profile: null,
-  loading: true,
-  signOut: async () => {},
-});
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Initial session
+  // Init + luister naar sessie-wijzigingen
   useEffect(() => {
     let mounted = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setSession(data.session ?? null);
-      setLoading(false);
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (mounted) {
+        setSession(data.session ?? null);
+        setLoading(false);
+      }
+    })();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession ?? null);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-    });
     return () => {
-      sub.subscription.unsubscribe();
       mounted = false;
+      subscription.unsubscribe();
     };
   }, []);
 
-  // Load profile
+  // Poets ?code=…/access_token uit URL zodra sessie staat
   useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      if (!session?.user) {
-        setProfile(null);
+    if (!session) return;
+    try {
+      const url = new URL(window.location.href);
+      if (url.search || url.hash) {
+        // Alleen pad houden (geen query/hash)
+        window.history.replaceState({}, document.title, url.pathname);
+      }
+    } catch {}
+  }, [session]);
+
+  const signInWithEmail = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+  };
+
+  const signUpWithEmail = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signUp({ email, password });
+    if (error) throw error;
+  };
+
+  // OAuth: top-level/new-tab redirect zodat StackBlitz-iframe niet blokkeert
+  const signInWithOAuth = async (provider: OAuthProvider) => {
+    const base = import.meta.env.BASE_URL || "/";
+    const normalizedBase = base.endsWith("/") ? base : base + "/";
+    const redirectTo = `${window.location.origin}${normalizedBase}`;
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo, skipBrowserRedirect: true },
+    });
+    if (error) throw error;
+
+    const url = data?.url;
+    if (!url) return;
+
+    try {
+      if (window.top && window.top !== window.self) {
+        window.top.location.assign(url);
         return;
       }
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, username, full_name, avatar_url')
-        .eq('id', session.user.id)
-        .maybeSingle();
+    } catch { /* ignore */ }
 
-      if (error) {
-        // eslint-disable-next-line no-console
-        console.error('Load profile error', error);
-      }
-      if (!cancelled) setProfile((data as Profile) ?? null);
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.user?.id]);
+    const w = window.open(url, "_blank", "noopener,noreferrer");
+    if (!w) window.location.assign(url);
+  };
 
-  const value = useMemo(
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  };
+
+  const value = useMemo<AuthContextValue>(
     () => ({
       user: session?.user ?? null,
-      profile,
+      session,
       loading,
-      signOut: async () => {
-        await supabase.auth.signOut();
-        setProfile(null);
-      },
+      signInWithEmail,
+      signUpWithEmail,
+      signInWithOAuth,
+      signOut,
     }),
-    [session?.user, profile, loading]
+    [session, loading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
+};
