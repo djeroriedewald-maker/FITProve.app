@@ -3,16 +3,20 @@ import React from "react";
 import { Link } from "react-router-dom";
 import BottomNav from "../components/nav/BottomNav";
 import ThemeToggle from "../components/ui/ThemeToggle";
-import UserButton from "../components/auth/UserButton";
+// import UserButton from "../components/auth/UserButton"; // ❌ legacy
+import { useAuth } from "../context/AuthProvider"; // ✅ nieuw
+import ProfileMenu from "../components/ProfileMenu"; // ✅ nieuw
 
 /**
  * AppShell
  * - Full-bleed page bg via body/#root (index.css)
  * - Header: transparant + blur, zonder borders
  * - Main: centrale contentbreedte, extra bottom padding voor nav
- * - Header rechts: UserButton (login/profiel) links van de ThemeToggle
+ * - Header rechts: Auth (Login/Profile) links van de ThemeToggle
  */
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth() as any;
+
   return (
     <div className="min-h-svh flex flex-col bg-transparent">
       {/* Header */}
@@ -25,9 +29,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             FITProve.app
           </Link>
 
-          {/* Rechts: eerst UserButton, dan ThemeToggle */}
+          {/* Rechts: eerst Auth (Login/Profile), dan ThemeToggle */}
           <div className="flex items-center gap-2">
-            <UserButton />
+            {!user ? (
+              <Link
+                to="/login"
+                className="px-3 py-1.5 rounded-xl bg-orange-500 text-black font-semibold hover:bg-orange-400 transition"
+              >
+                Log in
+              </Link>
+            ) : (
+              <ProfileMenu />
+            )}
             <ThemeToggle />
           </div>
         </div>
