@@ -1,44 +1,51 @@
-import React, { useState } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
+import React, { useEffect, useState } from "react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useAuth } from "@/context/AuthProvider";
 
 const LoginPage: React.FC = () => {
-  const { signInWithEmail, signUpWithEmail, signInWithOAuth } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const { user, loading, signInWithEmail, signUpWithEmail, signInWithOAuth } = useAuth() as any;
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"login" | "signup">("login");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
   const location = useLocation() as any;
-  const from = location.state?.from?.pathname || '/dashboard';
+  const from = location.state?.from?.pathname || "/";
+
+  // ✅ Nieuw: als je al ingelogd bent, ga naar Home
+  useEffect(() => {
+    if (!loading && user) {
+      navigate("/", { replace: true });
+    }
+  }, [user, loading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      if (mode === 'login') {
+      if (mode === "login") {
         await signInWithEmail(email, password);
       } else {
         await signUpWithEmail(email, password);
       }
       navigate(from, { replace: true });
     } catch (err: any) {
-      setError(err.message ?? 'Er ging iets mis. Probeer opnieuw.');
+      setError(err.message ?? "Er ging iets mis. Probeer opnieuw.");
     } finally {
       setBusy(false);
     }
   };
 
-  const oauth = async (p: 'google' | 'apple') => {
+  const oauth = async (p: "google" | "apple") => {
     setError(null);
     setBusy(true);
     try {
       await signInWithOAuth(p);
-      // redirect handled by provider
+      // redirect door provider
     } catch (err: any) {
-      setError(err.message ?? 'OAuth fout. Probeer opnieuw.');
+      setError(err.message ?? "OAuth fout. Probeer opnieuw.");
       setBusy(false);
     }
   };
@@ -58,22 +65,22 @@ const LoginPage: React.FC = () => {
             <div className="mx-auto mb-4 w-12 h-12 rounded-2xl bg-orange-500" />
             <h1 className="text-2xl font-bold">Coach Tai</h1>
             <p className="text-white/70 mt-1">
-              “Ik ben je nieuwe login-buddy. Even inchecken en we gaan knallen.”
+              “Ik ben je login-buddy. Even inchecken en we gaan knallen.”
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-2 mb-4">
             <button
-              className={`py-2 rounded-xl font-semibold ${mode === 'login' ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'}`}
-              onClick={() => setMode('login')}
-              aria-pressed={mode === 'login'}
+              className={`py-2 rounded-xl font-semibold ${mode === "login" ? "bg-white text-black" : "bg-white/10 text-white hover:bg-white/20"}`}
+              onClick={() => setMode("login")}
+              aria-pressed={mode === "login"}
             >
               Inloggen
             </button>
             <button
-              className={`py-2 rounded-xl font-semibold ${mode === 'signup' ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'}`}
-              onClick={() => setMode('signup')}
-              aria-pressed={mode === 'signup'}
+              className={`py-2 rounded-xl font-semibold ${mode === "signup" ? "bg-white text-black" : "bg-white/10 text-white hover:bg-white/20"}`}
+              onClick={() => setMode("signup")}
+              aria-pressed={mode === "signup"}
             >
               Account maken
             </button>
@@ -86,7 +93,7 @@ const LoginPage: React.FC = () => {
                 type="email"
                 required
                 value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value)}
                 className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 outline-none focus:border-orange-500"
                 placeholder="jij@example.nl"
                 autoComplete="email"
@@ -98,10 +105,10 @@ const LoginPage: React.FC = () => {
                 type="password"
                 required
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
                 className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 outline-none focus:border-orange-500"
                 placeholder="●●●●●●●●"
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
                 minLength={6}
               />
             </label>
@@ -117,7 +124,7 @@ const LoginPage: React.FC = () => {
               disabled={busy}
               className="w-full py-2 rounded-xl bg-orange-500 text-black font-semibold hover:bg-orange-400 disabled:opacity-60"
             >
-              {busy ? 'Bezig…' : (mode === 'login' ? 'Log in' : 'Maak account')}
+              {busy ? "Bezig…" : mode === "login" ? "Log in" : "Maak account"}
             </button>
           </form>
 
@@ -129,14 +136,14 @@ const LoginPage: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => oauth('google')}
+              onClick={() => oauth("google")}
               className="py-2 rounded-xl bg-white text-black font-semibold hover:bg-white/90"
               disabled={busy}
             >
               Google
             </button>
             <button
-              onClick={() => oauth('apple')}
+              onClick={() => oauth("apple")}
               className="py-2 rounded-xl bg-white text-black font-semibold hover:bg-white/90"
               disabled={busy}
             >
