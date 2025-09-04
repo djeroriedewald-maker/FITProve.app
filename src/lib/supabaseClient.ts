@@ -8,7 +8,7 @@ const key = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim
 export const isSupabaseConfigured = Boolean(url && key);
 
 function makeThrowingClient(): SupabaseClient {
-  const handler: ProxyHandler<any> = {
+  const handler: ProxyHandler<object> = {
     get() {
       throw new Error(
         "Supabase niet geconfigureerd. Zet VITE_SUPABASE_URL en VITE_SUPABASE_ANON_KEY in .env."
@@ -20,8 +20,8 @@ function makeThrowingClient(): SupabaseClient {
       );
     },
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return new Proxy({} as any as SupabaseClient, handler);
+  // Cast via unknown om 'any' te vermijden
+  return new Proxy({}, handler) as unknown as SupabaseClient;
 }
 
 export const supabase: SupabaseClient =

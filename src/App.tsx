@@ -1,10 +1,11 @@
+// src/App.tsx
 import React, { Suspense, lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import AppShell from "./layout/AppShell";
 import { AuthProvider } from "./context/AuthProvider";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
-// Bestaande routes
+// Bestaande routes (lazy)
 const Home = lazy(() => import("./routes/Home"));
 const Coach = lazy(() => import("./routes/Coach"));
 const Stats = lazy(() => import("./routes/Stats"));
@@ -14,6 +15,10 @@ const Profile = lazy(() => import("./routes/Profile"));
 // Nieuwe routes
 const LoginPage = lazy(() => import("./routes/LoginPage"));
 const Dashboard = lazy(() => import("./routes/Dashboard"));
+
+// Modules (lazy)
+const ModulesIndex = lazy(() => import("./routes/modules/ModulesIndex"));
+const ModuleDetail = lazy(() => import("./routes/modules/ModuleDetail"));
 
 export default function App() {
   return (
@@ -28,7 +33,7 @@ export default function App() {
             <Route path="/news" element={<News />} />
             <Route path="/login" element={<LoginPage />} />
 
-            {/* (optioneel) Profiel kan blijven bestaan; maak ‘m protected als dit een user-page is */}
+            {/* (optioneel) Profiel protected */}
             <Route
               path="/profile"
               element={
@@ -38,12 +43,30 @@ export default function App() {
               }
             />
 
-            {/* Nieuwe protected dashboard */}
+            {/* Dashboard protected */}
             <Route
               path="/dashboard"
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Modules protected */}
+            <Route
+              path="/modules"
+              element={
+                <ProtectedRoute>
+                  <ModulesIndex />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/modules/:slug"
+              element={
+                <ProtectedRoute>
+                  <ModuleDetail />
                 </ProtectedRoute>
               }
             />

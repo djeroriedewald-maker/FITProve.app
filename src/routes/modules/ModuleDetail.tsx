@@ -1,0 +1,175 @@
+// src/routes/modules/ModuleDetail.tsx
+import { useParams, Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import type { AppModule } from "../../types/module";
+import WorkoutModule from "../../modules/WorkoutModule";
+
+export default function ModuleDetail() {
+  const { slug } = useParams<{ slug: string }>();
+  const [mods, setMods] = useState<AppModule[] | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    import("../../data/modules.json")
+      .then((m) => {
+        if (mounted) setMods(m.default as AppModule[]);
+      })
+      .catch((e) => {
+        console.error("Failed to load modules.json", e);
+        if (mounted) setMods([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const mod = useMemo(
+    () => (mods ?? []).find((m) => m.slug === slug),
+    [mods, slug]
+  );
+
+  // Loading skeleton
+  if (mods === null) {
+    return (
+      <section className="px-0 pb-8">
+        <div className="relative">
+          <div className="h-48 md:h-64 w-full bg-zinc-200 dark:bg-zinc-800 animate-pulse" />
+        </div>
+        <div className="px-4 mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <div className="h-6 w-1/2 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse" />
+            <div className="h-4 w-2/3 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse" />
+            <div className="h-24 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse" />
+          </div>
+          <div className="h-48 bg-zinc-200 dark:bg-zinc-800 rounded-2xl border border-zinc-200 dark:border-zinc-800 animate-pulse" />
+        </div>
+      </section>
+    );
+  }
+
+  // Not found
+  if (!mod) {
+    return (
+      <section className="px-4 py-4 md:py-6">
+        <h1 className="text-xl font-bold">Module niet gevonden</h1>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Controleer de URL of ga terug naar het overzicht.
+        </p>
+        <Link
+          to="/modules"
+          className="inline-block mt-4 text-sm rounded-lg px-3 py-2 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+        >
+          ← Terug naar modules
+        </Link>
+      </section>
+    );
+  }
+
+  return (
+    <section className="px-0 pb-8">
+      {/* Hero */}
+      <div className="relative">
+        <img
+          src={mod.hero}
+          alt={`${mod.title} hero`}
+          className="h-48 md:h-64 w-full object-cover"
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+        <div className="absolute bottom-3 left-4 right-4">
+          <h1 className="text-white text-2xl md:text-3xl font-bold drop-shadow">
+            {mod.title}
+          </h1>
+          <p className="text-white/90 text-sm md:text-base drop-shadow">
+            {mod.description}
+          </p>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="px-4 mt-4">
+        <div className="mb-3">
+          <Link
+            to="/modules"
+            className="inline-block text-sm rounded-lg px-3 py-2 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+          >
+            ← Terug naar modules
+          </Link>
+        </div>
+
+        {/* 2-koloms layout (1 kolom op mobiel, 2 vanaf sm) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Linkerkolom: hoofdinhoud */}
+          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/60 backdrop-blur">
+            {mod.slug === "workout" ? (
+              <WorkoutModule />
+            ) : (
+              <div className="p-4">
+                <h2 className="text-lg font-semibold">Inhoud volgt</h2>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  Deze module krijgt binnenkort zijn specifieke componenten en flows.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Rechterkolom: zijpaneel / details */}
+          <aside className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 bg-white/70 dark:bg-zinc-900/60 backdrop-blur">
+            <h3 className="text-base font-semibold">Over deze module</h3>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              {mod.description}
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="text-xs rounded-full px-2 py-1 border border-zinc-300 dark:border-zinc-700">
+                Status: {mod.status === "active" ? "Actief" : "Binnenkort"}
+              </span>
+              <span className="text-xs rounded-full px-2 py-1 border border-zinc-300 dark:border-zinc-700">
+                Slug: {mod.slug}
+              </span>
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              {mod.slug === "workout" ? (
+                <>
+                  <a
+                    href="#start"
+                    className="text-sm px-3 py-2 rounded-lg border border-orange-500/30 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10"
+                  >
+                    Snel starten
+                  </a>
+                  <a
+                    href="#info"
+                    className="text-sm px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  >
+                    Meer info
+                  </a>
+                </>
+              ) : (
+                <a
+                  href="#notify"
+                  className="text-sm px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                >
+                  Meld me bij updates
+                </a>
+              )}
+            </div>
+
+            <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
+              <img
+                src={mod.image}
+                alt={`${mod.title} visual`}
+                className="w-full h-28 object-cover"
+                loading="lazy"
+                decoding="async"
+                draggable={false}
+              />
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+  );
+}
