@@ -1,3 +1,4 @@
+// src/routes/modules/ModuleDetail.tsx
 import { useParams, Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import type { AppModule } from "../../types/module";
@@ -10,10 +11,12 @@ export default function ModuleDetail() {
   useEffect(() => {
     let mounted = true;
     import("../../data/modules.json")
-      .then((m) => mounted && setMods(m.default as AppModule[]))
+      .then((m) => {
+        if (mounted) setMods(m.default as AppModule[]);
+      })
       .catch((e) => {
         console.error("Failed to load modules.json", e);
-        mounted && setMods([]);
+        if (mounted) setMods([]);
       });
     return () => {
       mounted = false;
@@ -128,7 +131,6 @@ export default function ModuleDetail() {
               </span>
             </div>
 
-            {/* CTA/links kunnen per module verschillen */}
             <div className="mt-4 flex gap-2">
               {mod.slug === "workout" ? (
                 <>
@@ -155,7 +157,6 @@ export default function ModuleDetail() {
               )}
             </div>
 
-            {/* Extra: hero preview klein (optioneel) */}
             <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
               <img
                 src={mod.image}
