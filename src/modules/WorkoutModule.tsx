@@ -1,25 +1,33 @@
+// src/modules/WorkoutModule.tsx
 import { useEffect, useState } from "react";
 
-type Workout = {
+/** Matcht je workouts.json */
+type WorkoutData = {
   id: string;
+  slug?: string;
   title: string;
-  level: "beginner" | "intermediate" | "advanced";
-  durationMin: number;
-  focus: "full-body" | "upper" | "lower" | "core" | "conditioning";
+  module?: string;
+  level?: string;          // "beginner" | "intermediate" | "advanced" | "all" | undefined
+  duration?: number;       // let op: in JSON heet dit 'duration'
+  calories?: number;
+  tags?: string[];
+  equipment?: string[];
+  blocks?: unknown[];
 };
 
 export default function WorkoutModule() {
-  const [items, setItems] = useState<Workout[] | null>(null);
-  const [level, setLevel] = useState<Workout["level"] | "all">("all");
+  const [items, setItems] = useState<WorkoutData[] | null>(null);
+  const [level, setLevel] = useState<string>("all");
 
   useEffect(() => {
     let mounted = true;
-    // let op: we zitten in src/modules → ../data/workouts.json
     import("../data/workouts.json")
-      .then((m) => mounted && setItems(m.default as Workout[]))
+      .then((m) => {
+        if (mounted) setItems(m.default as unknown as WorkoutData[]);
+      })
       .catch((e) => {
         console.error("Failed to load workouts.json", e);
-        mounted && setItems([]);
+        if (mounted) setItems([]);
       });
     return () => {
       mounted = false;
@@ -30,12 +38,12 @@ export default function WorkoutModule() {
     items?.filter((w) => (level === "all" ? true : w.level === level)) ?? [];
 
   return (
-    <div className="px-4 py-4">
+    <div className="px-4 py-4" id="start">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Snel starten</h2>
         <select
           value={level}
-          onChange={(e) => setLevel(e.target.value as any)}
+          onChange={(e) => setLevel(e.target.value)}
           className="text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1"
           aria-label="Filter op niveau"
         >
@@ -68,7 +76,7 @@ export default function WorkoutModule() {
                 <div>
                   <h3 className="font-medium">{w.title}</h3>
                   <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                    {w.level} • {w.focus} • {w.durationMin} min
+                    {(w.level ?? "all") + " • " + (w.duration ? `${w.duration} min` : "– min")}
                   </p>
                 </div>
                 <button
