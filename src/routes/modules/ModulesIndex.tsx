@@ -1,41 +1,47 @@
-// src/routes/modules/ModulesIndex.tsx
-import { useEffect, useState } from "react";
-import ModuleCard, { ModuleCardSkeleton } from "../../components/modules/ModuleCard";
-import type { AppModule } from "../../types/module";
+import ModuleCard from "../../components/modules/ModuleCard";
+import modulesData from "../../data/modules.json";
+
+type RawModule = {
+  id?: string;
+  slug?: string;
+  title?: string;
+  name?: string;
+  description?: string;
+  image?: string;
+};
+
+const items = (modulesData as RawModule[]).map((m, i) => {
+  const idOrSlug = (m.id || m.slug || String(i)).toString();
+  const to =
+    idOrSlug === "workouts" ? "/modules/workouts" : `/modules/${idOrSlug}`;
+
+  return {
+    to,
+    title: m.title || m.name || "Module",
+    description: m.description ?? "",
+    image: m.image,
+  };
+});
 
 export default function ModulesIndex() {
-  const [mods, setMods] = useState<AppModule[] | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    import("../../data/modules.json")
-      .then((m) => {
-        if (mounted) setMods(m.default as AppModule[]);
-      })
-      .catch((e) => {
-        console.error("Failed to load modules.json", e);
-        if (mounted) setMods([]);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
   return (
-    <section className="px-4 py-4 md:py-6">
-      <header className="mb-4">
-        <h1 className="text-xl md:text-2xl font-bold">Modules</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Kies een module om te starten.
-        </p>
+    <section className="px-4 py-6 space-y-4">
+      <header>
+        <h1 className="text-2xl font-semibold">Modules</h1>
       </header>
 
       {/* Altijd 2 kolommen */}
-      <ul className="grid grid-cols-2 gap-4">
-        {mods === null
-          ? Array.from({ length: 6 }).map((_, i) => <ModuleCardSkeleton key={i} />)
-          : mods.map((mod) => <ModuleCard key={mod.slug} mod={mod} />)}
-      </ul>
+      <div className="grid grid-cols-2 gap-4">
+        {items.map((m, idx) => (
+          <ModuleCard
+            key={`${m.to}-${idx}`}
+            to={m.to}
+            title={m.title}
+            description={m.description}
+            image={m.image}
+          />
+        ))}
+      </div>
     </section>
   );
 }

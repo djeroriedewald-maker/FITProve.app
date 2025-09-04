@@ -1,4 +1,4 @@
-// src/context/AuthProvider.tsx
+// FILE: src/context/AuthProvider.tsx
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Profiel laden
+  // Profiel laden wanneer user verandert
   useEffect(() => {
     let cancelled = false;
 
@@ -80,18 +80,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [user?.id]);
 
-  const value = useMemo<AuthContextValue>(
+  // >>> Belangrijk: Promise<void> return type voor signOut
+  async function handleSignOut(): Promise<void> {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("auth.signOut error:", error.message);
+    }
+  }
+
+  const value: AuthContextValue = useMemo(
     () => ({
       user,
       profile,
       loading,
-      // Wrap zodat return type Promise<void> is
-      async signOut() {
-        const { error } = await supabase.auth.signOut();
-        if (error) {
-          console.error("signOut failed:", error.message);
-        }
-      },
+      signOut: handleSignOut,
     }),
     [user, profile, loading]
   );

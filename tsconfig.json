@@ -11,7 +11,16 @@
     "esModuleInterop": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "baseUrl": "src"
+
+    // Belangrijk voor imports met "@/..."
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+
+    // Vite/TS hinting
+    "types": ["vite/client"]
   },
-  "include": ["src"]
+  "include": ["src", "scripts", "supabase"],
+  "references": [{ "path": "./tsconfig.node.json" }]
 }
