@@ -1,3 +1,4 @@
+// src/routes/modules/ModulesIndex.tsx
 import { useEffect, useState } from "react";
 import ModuleCard, { ModuleCardSkeleton } from "../../components/modules/ModuleCard";
 import type { AppModule } from "../../types/module";
@@ -8,10 +9,12 @@ export default function ModulesIndex() {
   useEffect(() => {
     let mounted = true;
     import("../../data/modules.json")
-      .then((m) => mounted && setMods(m.default as AppModule[]))
+      .then((m) => {
+        if (mounted) setMods(m.default as AppModule[]);
+      })
       .catch((e) => {
         console.error("Failed to load modules.json", e);
-        mounted && setMods([]);
+        if (mounted) setMods([]);
       });
     return () => {
       mounted = false;
@@ -29,9 +32,9 @@ export default function ModulesIndex() {
 
       {/* Altijd 2 kolommen */}
       <ul className="grid grid-cols-2 gap-4">
-        {mods === null &&
-          Array.from({ length: 6 }).map((_, i) => <ModuleCardSkeleton key={i} />)}
-        {mods !== null && mods.map((mod) => <ModuleCard key={mod.slug} mod={mod} />)}
+        {mods === null
+          ? Array.from({ length: 6 }).map((_, i) => <ModuleCardSkeleton key={i} />)
+          : mods.map((mod) => <ModuleCard key={mod.slug} mod={mod} />)}
       </ul>
     </section>
   );
