@@ -16,9 +16,20 @@ const Profile = lazy(() => import("./routes/Profile"));
 const LoginPage = lazy(() => import("./routes/LoginPage"));
 const Dashboard = lazy(() => import("./routes/Dashboard"));
 
-// Modules (lazy)
+// Modules (lazy) – GENESTE ROUTES
+const ModulesLayout = lazy(() => import("./routes/modules/ModulesLayout"));
+// ✅ Belangrijk: de index hoort onder ./routes/modules/
 const ModulesIndex = lazy(() => import("./routes/modules/ModulesIndex"));
-const ModuleDetail = lazy(() => import("./routes/modules/ModuleDetail"));
+const ModuleDetail = lazy(() => import("./routes/modules/ModuleDetail")); // dynamisch :slug
+
+// ✅ Workouts module (lazy)
+const WorkoutsIndex = lazy(() => import("./routes/modules/workouts/index"));
+const WorkoutDetail = lazy(() => import("./routes/modules/workouts/[id]"));
+// ✔ execute hoort bij een specifieke workout-id
+const ExecuteWorkout = lazy(() => import("./routes/modules/workouts/execute"));
+const BadgesPage = lazy(() => import("./routes/modules/workouts/badges"));
+const WorkoutsHelp = lazy(() => import("./routes/modules/workouts/help"));
+const WorkoutLogs = lazy(() => import("./routes/modules/workouts/logs"));
 
 export default function App() {
   return (
@@ -33,7 +44,7 @@ export default function App() {
             <Route path="/news" element={<News />} />
             <Route path="/login" element={<LoginPage />} />
 
-            {/* (optioneel) Profiel protected */}
+            {/* Profiel (optioneel) protected */}
             <Route
               path="/profile"
               element={
@@ -53,23 +64,30 @@ export default function App() {
               }
             />
 
-            {/* Modules protected */}
+            {/* ✅ MODULES: geneste routes met index + expliciete workouts + fallback :slug */}
             <Route
               path="/modules"
               element={
                 <ProtectedRoute>
-                  <ModulesIndex />
+                  <ModulesLayout />
                 </ProtectedRoute>
               }
-            />
-            <Route
-              path="/modules/:slug"
-              element={
-                <ProtectedRoute>
-                  <ModuleDetail />
-                </ProtectedRoute>
-              }
-            />
+            >
+              {/* Overzicht met tegels – dit is wat /modules rendert */}
+              <Route index element={<ModulesIndex />} />
+
+              {/* Expliciete workouts-routes */}
+              <Route path="workouts" element={<WorkoutsIndex />} />
+              <Route path="workouts/:id" element={<WorkoutDetail />} />
+              {/* execute hoort onder een :id; zo voorkom je losse /modules/workouts/execute */}
+              <Route path="workouts/:id/execute" element={<ExecuteWorkout />} />
+              <Route path="workouts/badges" element={<BadgesPage />} />
+              <Route path="workouts/help" element={<WorkoutsHelp />} />
+              <Route path="workouts/logs" element={<WorkoutLogs />} />
+
+              {/* Fallback voor andere modules (detailpagina op :slug) */}
+              <Route path=":slug" element={<ModuleDetail />} />
+            </Route>
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />

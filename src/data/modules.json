@@ -1,59 +1,58 @@
 [
-    {
-      "title": "Workout",
-      "slug": "workout",
-      "description": "Snel starten met kant-en-klare workouts.",
-      "image": "https://fitprove.app/images/modules/workout.webp",
-      "hero": "https://fitprove.app/images/modules/workout.webp",
-      "status": "active"
-    },
-    {
-      "title": "Workout-Generator",
-      "slug": "workout-generator",
-      "description": "Genereer gepersonaliseerde workouts voor gym of thuis.",
-      "image": "https://fitprove.app/images/modules/workout-generator.webp",
-      "hero": "https://fitprove.app/images/modules/workout-generator.webp",
-      "status": "active"
-    },
-    {
-      "title": "Recovering",
-      "slug": "recovering",
-      "description": "Herstel sneller met slimme protocollen.",
-      "image": "https://fitprove.app/images/modules/recovering.webp",
-      "hero": "https://fitprove.app/images/modules/recovering.webp",
-      "status": "active"
-    },
-    {
-      "title": "Nutrition",
-      "slug": "nutrition",
-      "description": "Voeding en recepten afgestemd op je doel.",
-      "image": "https://fitprove.app/images/modules/food.webp",
-      "hero": "https://fitprove.app/images/modules/food.webp",
-      "status": "active"
-    },
-    {
-      "title": "Stretching",
-      "slug": "stretching",
-      "description": "Mobiliteit en flexibiliteit, kort en effectief.",
-      "image": "https://fitprove.app/images/modules/stretching.webp",
-      "hero": "https://fitprove.app/images/modules/stretching.webp",
-      "status": "active"
-    },
-    {
-      "title": "Mindset",
-      "slug": "mindset",
-      "description": "Focus, motivatie en routines die blijven plakken.",
-      "image": "https://fitprove.app/images/modules/mindset.webp",
-      "hero": "https://fitprove.app/images/modules/mindset.webp",
-      "status": "active"
-    },
-    {
-      "title": "Badges",
-      "slug": "badges",
-      "description": "Verdien en deel je prestaties.",
-      "image": "https://fitprove.app/images/modules/badges.webp",
-      "hero": "https://fitprove.app/images/modules/badges.webp",
-      "status": "active"
-    }
-  ]
-  
+  {
+    "title": "Workout",
+    "slug": "workouts",
+    "description": "Zoek in de library, start een workout en log gewicht/reps/tijd. Verdien badges.",
+    "image": "https://fitprove.app/images/modules/workout.webp",
+    "hero": "https://fitprove.app/images/modules/workout.webp",
+    "status": "active"
+  },
+  {
+    "title": "Workout-Generator",
+    "slug": "workout-generator",
+    "description": "Genereer gepersonaliseerde workouts voor gym of thuis.",
+    "image": "https://fitprove.app/images/modules/workout-generator.webp",
+    "hero": "https://fitprove.app/images/modules/workout-generator.webp",
+    "status": "active"
+  },
+  {
+    "title": "Recovering",
+    "slug": "recovering",
+    "description": "Herstel sneller met slimme protocollen.",
+    "image": "https://fitprove.app/images/modules/recovering.webp",
+    "hero": "https://fitprove.app/images/modules/recovering.webp",
+    "status": "active"
+  },
+  {
+    "title": "Nutrition",
+    "slug": "nutrition",
+    "description": "Voeding en recepten afgestemd op je doel.",
+    "image": "https://fitprove.app/images/modules/food.webp",
+    "hero": "https://fitprove.app/images/modules/food.webp",
+    "status": "active"
+  },
+  {
+    "title": "Stretching",
+    "slug": "stretching",
+    "description": "Mobiliteit en flexibiliteit, kort en effectief.",
+    "image": "https://fitprove.app/images/modules/stretching.webp",
+    "hero": "https://fitprove.app/images/modules/stretching.webp",
+    "status": "active"
+  },
+  {
+    "title": "Mindset",
+    "slug": "mindset",
+    "description": "Focus, motivatie en routines die blijven plakken.",
+    "image": "https://fitprove.app/images/modules/mindset.webp",
+    "hero": "https://fitprove.app/images/modules/mindset.webp",
+    "status": "active"
+  },
+  {
+    "title": "Badges",
+    "slug": "badges",
+    "description": "Verdien en deel je prestaties.",
+    "image": "https://fitprove.app/images/modules/badges.webp",
+    "hero": "https://fitprove.app/images/modules/badges.webp",
+    "status": "active"
+  }
+]

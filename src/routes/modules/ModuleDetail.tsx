@@ -2,10 +2,21 @@
 import { useParams, Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import type { AppModule } from "../../types/module";
+
+// Nieuwe workouts-module (tabs + filter)
+import WorkoutsIndex from "./workouts";
+
+// Back-compat voor eventuele oude 'workout' (enkelvoud)
 import WorkoutModule from "../../modules/WorkoutModule";
 
 export default function ModuleDetail() {
   const { slug } = useParams<{ slug: string }>();
+
+  // ⚡️ Short-circuit: direct de nieuwe module tonen
+  if (slug === "workouts") {
+    return <WorkoutsIndex />;
+  }
+
   const [mods, setMods] = useState<AppModule[] | null>(null);
 
   useEffect(() => {
@@ -28,7 +39,6 @@ export default function ModuleDetail() {
     [mods, slug]
   );
 
-  // Loading skeleton
   if (mods === null) {
     return (
       <section className="px-0 pb-8">
@@ -47,7 +57,6 @@ export default function ModuleDetail() {
     );
   }
 
-  // Not found
   if (!mod) {
     return (
       <section className="px-4 py-4 md:py-6">
@@ -99,9 +108,8 @@ export default function ModuleDetail() {
           </Link>
         </div>
 
-        {/* 2-koloms layout (1 kolom op mobiel, 2 vanaf sm) */}
+        {/* 2-koloms layout (fallback voor overige modules) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Linkerkolom: hoofdinhoud */}
           <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/60 backdrop-blur">
             {mod.slug === "workout" ? (
               <WorkoutModule />
@@ -115,48 +123,11 @@ export default function ModuleDetail() {
             )}
           </div>
 
-          {/* Rechterkolom: zijpaneel / details */}
           <aside className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 bg-white/70 dark:bg-zinc-900/60 backdrop-blur">
             <h3 className="text-base font-semibold">Over deze module</h3>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
               {mod.description}
             </p>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="text-xs rounded-full px-2 py-1 border border-zinc-300 dark:border-zinc-700">
-                Status: {mod.status === "active" ? "Actief" : "Binnenkort"}
-              </span>
-              <span className="text-xs rounded-full px-2 py-1 border border-zinc-300 dark:border-zinc-700">
-                Slug: {mod.slug}
-              </span>
-            </div>
-
-            <div className="mt-4 flex gap-2">
-              {mod.slug === "workout" ? (
-                <>
-                  <a
-                    href="#start"
-                    className="text-sm px-3 py-2 rounded-lg border border-orange-500/30 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10"
-                  >
-                    Snel starten
-                  </a>
-                  <a
-                    href="#info"
-                    className="text-sm px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                  >
-                    Meer info
-                  </a>
-                </>
-              ) : (
-                <a
-                  href="#notify"
-                  className="text-sm px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                >
-                  Meld me bij updates
-                </a>
-              )}
-            </div>
-
             <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
               <img
                 src={mod.image}

@@ -1,0 +1,22 @@
+{
+  "version": "v20250905",
+  "createdAt": "2025-09-05T11:29:47.967Z",
+  "total": 868,
+  "chunkSize": 400,
+  "chunks": 3,
+  "basePath": "./v20250905",
+  "attribution": {
+    "wger": {
+      "name": "CC-BY-SA 3.0",
+      "url": "https://wger.de/",
+      "attribution": "wger Workout Manager",
+      "count": 214
+    },
+    "exerciseDB": {
+      "name": "Open-source dataset",
+      "url": "https://github.com/yuhonas/free-exercise-db",
+      "attribution": "Community contributors",
+      "count": 873
+    }
+  }
+}
