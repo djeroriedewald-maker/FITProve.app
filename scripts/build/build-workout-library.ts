@@ -1,18 +1,32 @@
 // scripts/build/build-workout-library.ts
-/* eslint-disable no-console */
-import { stat } from "node:fs/promises";
+// Merge + validate + dedupe + chunk → /public/data/workouts/vYYYYMMDD + root aliases
+import { mkdir, writeFile, stat } from 'fs/promises';
+import path from 'path';
+import {
+    DEFAULT_CHUNK_SIZE,
+    NormalizedExercise,
+    WorkoutManifest,
+    shortHash,
+    hasAnyMedia,
+    normalizeName,
+  } from '../../src/types/workout';
+  import { fetchFromWger, fetchFromExerciseDB } from './workout-sources';  
 
-export async function main() {
-  try {
-    await stat("."); // gebruik fs zodat import niet 'unused' is
-    console.log("[build-workout-library] noop");
-  } catch {
-    // ignore voor CI
+type BuildOptions = {
+...
+    return x.name && hasDesc && hasMuscle && hasEquip && hasAnyMedia(x.media);
+  });
+
+  // 3) dedupe/merge
+  const merged = mergeExercises(pre);
+
+  if (merged.length < 1000) {
+    console.warn(`⚠ Warning: only ${merged.length} items after merge; expected ≥1000`);
   }
-}
 
-// Optioneel: auto-run bij direct uitvoeren
-if (require.main === module) {
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises
-  main();
-}
+  // 4) chunk
+  const chunks: NormalizedExercise[][] = [];
+  for (let i = 0; i < merged.length; i += chunkSize) {
+    chunks.push(merged.slice(i, i + chunkSize));
+  }
+...
