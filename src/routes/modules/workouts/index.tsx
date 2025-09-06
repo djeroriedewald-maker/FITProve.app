@@ -1,11 +1,11 @@
 // src/routes/modules/workouts/index.tsx
 import { useEffect, useMemo, useState } from "react";
 import WorkoutCard from "@/components/workouts/WorkoutCard";
-import { listWorkouts } from "@/lib/workouts-client";
-import type { Workout as WorkoutT } from "@/types/workouts";
 import { supabase } from "@/lib/supabaseClient";
+// ✅ runtime loaders voor manifest/chunks (zie: src/workout-sources.ts)
+import { streamExercises, streamWorkouts } from "@/workout-sources";
 
-/** === Types voor Exercise Library (losse oefeningen) === */
+/** ---- Types ---- */
 type Media = { images?: string[]; gifs?: string[]; videos?: string[]; thumbnail?: string };
 type Exercise = {
   id: string;
@@ -18,19 +18,34 @@ type Exercise = {
   equipment: string[];
   category?: string;
   media: Media;
-  language: "en";
+  language?: "en" | "nl";
 };
-type Manifest = { version: string; total: number; chunks: number; chunkSize: number; basePath: string };
+type GenWorkout = {
+  id: string;
+  slug: string;
+  title: string;
+  goal?: string;              // e.g. "strength" | "conditioning" | "fat_loss" | "mobility"
+  level?: string;             // "beginner" | "intermediate" | "advanced"
+  durationMin?: 20 | 30 | 45 | 60;
+  location?: "home" | "gym" | "outdoor";
+  equipment?: string[];       // ['bodyweight'] of mix
+  tags?: string[];
+  media?: { cover?: string | null };
+};
+type Manifest = { total: number; chunks: number; version?: string; generatedAt?: string };
 
-const BASE = (import.meta as any).env?.VITE_WORKOUTS_BASE as string | undefined;
 const HERO_URL = "https://fitprove.app/images/modules/workout.webp";
 
-/** Helpers (Exercise Library) */
-async function getJSON<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: { "cache-control": "no-cache" } });
+// Kleine fetch helper voor alleen-manifest KPI
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`HTTP ${res.status} @ ${url}`);
   return (await res.json()) as T;
 }
+const clean = (u: string) => (u || "").trim().replace(/\/manifest\.json$/i, "").replace(/\/+$/g, "");
+const manifestUrl = (base: string) => `${clean(base)}/manifest.json`;
+
+/** === Regio-filter (Exercise Library) === */
 type Regio = "all" | "onderlichaam" | "romp" | "armen" | "rug" | "benen";
 const REGIO_LABEL: Record<Regio, string> = {
   all: "Alle regio’s",
@@ -41,14 +56,11 @@ const REGIO_LABEL: Record<Regio, string> = {
   benen: "Benen",
 };
 const REGIO_MAP: Record<Exclude<Regio, "all">, Set<string>> = {
-  onderlichaam: new Set([
-    "glutes", "gluteus", "hips", "hip flexors", "adductors", "abductors",
-    "quadriceps", "quads", "hamstrings", "calves", "soleus", "tibialis",
-  ]),
-  romp: new Set(["abdominals", "abs", "core", "obliques", "transverse abdominis", "pelvic floor", "serratus"]),
-  armen: new Set(["biceps", "triceps", "forearms"]),
-  rug: new Set(["back", "upper back", "lats", "latissimus dorsi", "traps", "trapezius", "rhomboids", "erector spinae", "lower back"]),
-  benen: new Set(["quadriceps", "quads", "hamstrings", "calves", "soleus", "tibialis"]),
+  onderlichaam: new Set(["glutes","gluteus","hips","hip flexors","adductors","abductors","quadriceps","quads","hamstrings","calves","soleus","tibialis"]),
+  romp: new Set(["abdominals","abs","core","obliques","transverse abdominis","pelvic floor","serratus"]),
+  armen: new Set(["biceps","triceps","forearms"]),
+  rug: new Set(["back","upper back","lats","latissimus dorsi","traps","trapezius","rhomboids","erector spinae","lower back"]),
+  benen: new Set(["quadriceps","quads","hamstrings","calves","soleus","tibialis"]),
 };
 function exerciseMatchesRegio(x: Exercise, regio: Regio): boolean {
   if (regio === "all") return true;
@@ -61,45 +73,108 @@ function cx(...parts: Array<string | false | null | undefined>) {
 }
 
 export default function WorkoutsIndex() {
-  /** === Tabs: je komt hier via /modules → Workouts (home). Pas daarna kies je ‘Workout Library’. === */
   type Tab = "home" | "exercise-library" | "workout-library" | "my" | "badges" | "help";
   const [tab, setTab] = useState<Tab>("home");
 
-  // =========================
-  // Exercise Library (losse oefeningen) — nodig voor KPI "Oefeningen"
-  // =========================
-  const [items, setItems] = useState<Exercise[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  /** =========================
+   *  Exercise Library (losse oefeningen) — JSON via VITE_EXERCISES_BASE
+   *  ========================= */
+  const [exItems, setExItems] = useState<Exercise[] | null>(null);
+  const [exError, setExError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
-    async function load() {
+    (async () => {
       try {
-        if (!BASE) throw new Error("VITE_WORKOUTS_BASE ontbreekt in .env");
-        const manifest = await getJSON<Manifest>(`${BASE}/manifest.json`);
-        const urls = Array.from({ length: manifest.chunks }, (_, i) => `${BASE}/chunk-${String(i).padStart(3, "0")}.json`);
-        const parts = await Promise.all(urls.map((u) => getJSON<Exercise[]>(u)));
-        const all = parts.flat();
-        if (mounted) setItems(all);
+        // streamExercises gebruikt VITE_EXERCISES_BASE (fallback: WORKOUTS_BASE)
+        const buf: Exercise[] = [];
+        for await (const chunk of streamExercises<Exercise>()) {
+          if (!mounted) return;
+          buf.push(...chunk);
+        }
+        if (!mounted) return;
+        setExItems(buf);
       } catch (e: any) {
         console.error(e);
-        if (mounted) {
-          setError(e?.message ?? "Kon de exercise library niet laden.");
-          setItems([]);
+        if (!mounted) {
+          return;
         }
+        setExError(e?.message ?? "Kon de exercise library niet laden.");
+        setExItems([]);
       }
-    }
-    // Laden voor stats + exercise-library
-    load();
+    })();
     return () => { mounted = false; };
   }, []);
 
-  /** ===== KPI's voor Home: gevraagd set =====
-   * - Oefeningen in library (van BASE dataset)
-   * - Workouts in library (Supabase table `workouts`)
-   * - Workouts gedaan (user) (Supabase table `workout_sessions` met status=completed)
-   * - Badges verdiend (user) (Supabase table `user_badges`)
-   */
+  /** =========================
+   *  Workout Library (1500 JSON workouts) — via VITE_WORKOUTS_BASE
+   *  ========================= */
+  type WF = {
+    q?: string;
+    goal?: string;
+    level?: string;
+    equipment?: "any" | "with" | "without"; // with = niet-alleen-bodyweight, without = alleen bodyweight
+    duration?: "20" | "30" | "45" | "60" | "any";
+  };
+  const [wf, setWf] = useState<WF>({ equipment: "any", duration: "any" });
+  const [woChunksLoaded, setWoChunksLoaded] = useState<number>(0);
+  const [woItems, setWoItems] = useState<GenWorkout[]>([]);
+  const [woLoading, setWoLoading] = useState<boolean>(false);
+  const [woErr, setWoErr] = useState<string | undefined>();
+
+  // Laad workouts zodra tab open gaat (streamend)
+  useEffect(() => {
+    if (tab !== "workout-library") return;
+    let on = true;
+    setWoLoading(true);
+    setWoErr(undefined);
+    setWoChunksLoaded(0);
+    setWoItems([]);
+
+    (async () => {
+      try {
+        let i = 0;
+        for await (const chunk of streamWorkouts<GenWorkout>()) {
+          if (!on) return;
+          setWoItems((prev) => [...prev, ...chunk]);
+          setWoChunksLoaded(++i);
+        }
+      } catch (e: any) {
+        if (!on) return;
+        setWoErr(e?.message ?? "Kon workouts niet laden.");
+      } finally {
+        if (!on) return;
+        setWoLoading(false);
+      }
+    })();
+
+    return () => { on = false; };
+  }, [tab]);
+
+  // Workout-filtering
+  const woFiltered = useMemo(() => {
+    const qnorm = (wf.q ?? "").trim().toLowerCase();
+    return woItems.filter((w) => {
+      const okQ = !qnorm || w.title.toLowerCase().includes(qnorm);
+      const okGoal = !wf.goal || (w.goal ?? "").toLowerCase() === wf.goal.toLowerCase();
+      const okLevel = !wf.level || (w.level ?? "").toLowerCase() === wf.level.toLowerCase();
+      const eq = (w.equipment ?? []);
+      const onlyBW = eq.length > 0 && eq.every((e) => e === "bodyweight");
+      const okEquip =
+        wf.equipment === "any"
+          ? true
+          : wf.equipment === "without"
+          ? onlyBW
+          : !onlyBW;
+      const okDur =
+        wf.duration === "any" ? true : String(w.durationMin ?? "") === wf.duration;
+      return okQ && okGoal && okLevel && okEquip && okDur;
+    });
+  }, [woItems, wf]);
+
+  /** =========================
+   *  KPI’s (Home) — oefeningen = exItems.length; workouts = manifest.total
+   *  ========================= */
   const [kpi, setKpi] = useState({
     exercisesInLibrary: 0,
     workoutsInLibrary: 0,
@@ -108,33 +183,36 @@ export default function WorkoutsIndex() {
     loading: true,
   });
 
-  // update exercises KPI zodra items geladen zijn
+  // Oefeningen
   useEffect(() => {
-    setKpi((s) => ({ ...s, exercisesInLibrary: (items ?? []).length }));
-  }, [items]);
+    setKpi((s) => ({ ...s, exercisesInLibrary: (exItems ?? []).length }));
+  }, [exItems]);
 
-  // laad overige KPI's (Supabase); veilig met fallbacks als tabellen ontbreken
+  // Workouts (alleen manifest lezen voor teller)
   useEffect(() => {
     let on = true;
     (async () => {
       try {
-        // Auth check (RLS): alleen eigen rijen zichtbaar
+        const base = clean(import.meta.env.VITE_WORKOUTS_BASE as string);
+        const m = await fetchJson<Manifest>(manifestUrl(base));
+        if (!on) return;
+        setKpi((s) => ({ ...s, workoutsInLibrary: m.total, loading: false }));
+      } catch {
+        if (!on) return;
+        setKpi((s) => ({ ...s, workoutsInLibrary: 0, loading: false }));
+      }
+    })();
+
+    return () => { on = false; };
+  }, []);
+
+  // Workouts gedaan + badges via Supabase (blijft zoals was)
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
         await supabase.auth.getUser();
 
-        // Workouts in library (count)
-        let workoutsInLibrary = 0;
-        try {
-          const { count: wCount } = await supabase
-            .from("workouts")
-            .select("id", { count: "exact", head: true });
-          workoutsInLibrary = wCount ?? 0;
-        } catch {
-          // fallback: snelle fetch via listWorkouts
-          const list = await listWorkouts({}); // kan leeg zijn
-          workoutsInLibrary = (list ?? []).length;
-        }
-
-        // Workouts gedaan (completed sessions)
         let workoutsDone = 0;
         try {
           const { count } = await supabase
@@ -142,47 +220,24 @@ export default function WorkoutsIndex() {
             .select("id", { count: "exact" })
             .eq("status", "completed");
           workoutsDone = count ?? 0;
-        } catch {
-          workoutsDone = 0;
-        }
+        } catch { workoutsDone = 0; }
 
-        // Badges verdiend
         let badgesEarned = 0;
         try {
           const { count } = await supabase
             .from("user_badges")
             .select("id", { count: "exact" });
           badgesEarned = count ?? 0;
-        } catch {
-          badgesEarned = 0;
-        }
+        } catch { badgesEarned = 0; }
 
         if (!on) return;
-        setKpi((s) => ({
-          ...s,
-          workoutsInLibrary,
-          workoutsDone,
-          badgesEarned,
-          loading: false,
-        }));
+        setKpi((s) => ({ ...s, workoutsDone, badgesEarned }));
       } catch {
         if (!on) return;
-        setKpi((s) => ({ ...s, loading: false }));
       }
     })();
     return () => { on = false; };
   }, []);
-
-  /** Exercise Library afgeleide stats & filters (blijven bestaan voor die tab) */
-  const statsExtra = useMemo(() => {
-    const list = items ?? [];
-    const withVideo = list.filter((x) => (x.media?.videos?.length ?? 0) > 0).length;
-    const equipSet = new Set<string>();
-    list.forEach((x) => x.equipment?.forEach((e) => equipSet.add(e)));
-    const musclesSet = new Set<string>();
-    list.forEach((x) => [...(x.primaryMuscles ?? []), ...(x.secondaryMuscles ?? [])].forEach((m) => musclesSet.add(m)));
-    return { withVideo, equipments: equipSet.size, muscles: musclesSet.size };
-  }, [items]);
 
   /** Exercise Library filters */
   const [q, setQ] = useState("");
@@ -193,14 +248,14 @@ export default function WorkoutsIndex() {
 
   const equipmentOptions = useMemo(() => {
     const set = new Set<string>();
-    (items ?? []).forEach((x) => x.equipment?.forEach((e) => set.add(e)));
+    (exItems ?? []).forEach((x) => x.equipment?.forEach((e) => set.add(e)));
     return ["all", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
-  }, [items]);
+  }, [exItems]);
 
-  type CardItem = { id: string; title: string; duration?: number; level?: string; tags?: string[]; thumbnail?: string };
+  type CardItem = { id: string; title: string; duration?: number; level?: string; tags?: string[]; thumbnail?: string; to?: string };
   const exerciseCards: CardItem[] = useMemo(() => {
     const qnorm = q.trim().toLowerCase();
-    return (items ?? [])
+    return (exItems ?? [])
       .filter((x) => {
         const okQ =
           !qnorm ||
@@ -211,8 +266,8 @@ export default function WorkoutsIndex() {
         const okEquip = equipment === "all" ? true : x.equipment.includes(equipment);
         const okLevel = level === "all" ? true : true; // momenteel geen level in dataset
         const okVideo = !hasVideo || ((x.media?.videos?.length ?? 0) > 0);
-        const okRegio = exerciseMatchesRegio(x, regio);
-        return okQ && okEquip && okLevel && okVideo && okRegio;
+        const okR = exerciseMatchesRegio(x, regio);
+        return okQ && okEquip && okLevel && okVideo && okR;
       })
       .slice(0, 100)
       .map((x) => {
@@ -224,73 +279,28 @@ export default function WorkoutsIndex() {
         return {
           id: x.id,
           title: x.name,
-          duration: undefined,
-          level: undefined,
           tags: Array.from(tagSet),
           thumbnail: x.media?.thumbnail,
         };
       });
-  }, [items, q, level, equipment, hasVideo, regio]);
+  }, [exItems, q, level, equipment, hasVideo, regio]);
 
-  // =========================
-  // Workout Library (volledige workouts via Supabase)
-  // =========================
-  type WF = {
-    q?: string;
-    goal?: string;
-    level?: string;
-    location?: string;
-    equipment?: "with" | "without" | "any";
-    duration?: "15" | "30" | "45" | "60" | "90" | "any";
-  };
-  const [wf, setWf] = useState<WF>({ equipment: "any", duration: "any" });
-  const [workouts, setWorkouts] = useState<WorkoutT[]>([]);
-  const [woLoading, setWoLoading] = useState<boolean>(false);
-  const [woErr, setWoErr] = useState<string | undefined>();
-
-  // Laad alleen wanneer tab == "workout-library" of filters veranderen in die tab
-  useEffect(() => {
-    if (tab !== "workout-library") return;
-    let on = true;
-    setWoLoading(true);
-    setWoErr(undefined);
-
-    listWorkouts({
-      q: wf.q,
-      goal: wf.goal || undefined,
-      level: wf.level || undefined,
-      location: wf.location || undefined,
-      equipment: wf.equipment && wf.equipment !== "any" ? wf.equipment : undefined,
-      duration: wf.duration && wf.duration !== "any" ? (wf.duration as any) : undefined,
-    })
-      .then((data) => on && setWorkouts(data || []))
-      .catch((e) => on && setWoErr(e.message))
-      .finally(() => on && setWoLoading(false));
-
-    return () => { on = false; };
-  }, [tab, wf]);
-
-  /** My Workouts (compacte geschiedenis in deze file; volledige pagina op /modules/workouts/logs) */
-  type Session = { id: string; workout_id: string; workout_title?: string | null; status: string; started_at: string; completed_at?: string | null };
-  const [recent, setRecent] = useState<Session[] | null>(null);
-  useEffect(() => {
-    if (tab !== "my") return;
-    let on = true;
-    (async () => {
-      try {
-        const { data, error } = await supabase
-          .from("workout_sessions")
-          .select("id, workout_id, workout_title, status, started_at, completed_at")
-          .order("started_at", { ascending: false })
-          .limit(5);
-        if (error) throw error;
-        if (on) setRecent(data as Session[]);
-      } catch {
-        if (on) setRecent([]);
-      }
-    })();
-    return () => { on = false; };
-  }, [tab]);
+  // Workouts → naar cards
+  const workoutCards: CardItem[] = useMemo(() => {
+    return woFiltered.map((w) => ({
+      id: w.id,
+      title: w.title,
+      duration: w.durationMin,
+      level: w.level,
+      tags: [
+        ...(w.equipment ?? []),
+        ...(w.goal ? [w.goal] : []),
+        ...(w.level ? [w.level] : []),
+      ],
+      thumbnail: (w.media?.cover ?? undefined) as any,
+      // to: `/modules/programs/${w.id}`, // zet aan zodra je detailpagina hebt
+    }));
+  }, [woFiltered]);
 
   /** Shared UI styles */
   const baseField =
@@ -327,7 +337,7 @@ export default function WorkoutsIndex() {
 
       <h1 className="text-2xl font-bold mb-3">{heading}</h1>
 
-      {/* Tabs (geen router redirect) */}
+      {/* Tabs */}
       <div className="mb-3 flex gap-2 flex-wrap">
         {(["home", "exercise-library", "workout-library", "my", "badges", "help"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={chipBtn(tab === t)}>
@@ -346,50 +356,35 @@ export default function WorkoutsIndex() {
         ))}
       </div>
 
-      {/* ===== HOME (Landing) ===== */}
+      {/* ===== HOME ===== */}
       {tab === "home" && (
         <section className="space-y-6">
-          {/* KPI's — gevraagd set */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Kpi title="Oefeningen" value={kpi.exercisesInLibrary} hint="in library" loading={kpi.loading && (items === null)} />
+            <Kpi title="Oefeningen" value={kpi.exercisesInLibrary} hint="in library" loading={exItems === null} />
             <Kpi title="Workouts" value={kpi.workoutsInLibrary} hint="in library" loading={kpi.loading} />
             <Kpi title="Gedaan" value={kpi.workoutsDone} hint="workouts" loading={kpi.loading} />
             <Kpi title="Badges" value={kpi.badgesEarned} hint="verdiend" loading={kpi.loading} />
           </div>
 
-          {/* Extra informatieve mini-statistiek (alleen visueel; geen KPI) */}
           <div className="grid grid-cols-3 gap-3">
-            <MiniStat label="Met video" value={statsExtra.withVideo} />
-            <MiniStat label="Materiaaltypes" value={statsExtra.equipments} />
-            <MiniStat label="Spiergroepen" value={statsExtra.muscles} />
+            <MiniStat label="Met video" value={(exItems ?? []).filter((x) => (x.media?.videos?.length ?? 0) > 0).length} />
+            <MiniStat label="Materiaaltypes" value={new Set((exItems ?? []).flatMap((x) => x.equipment ?? [])).size} />
+            <MiniStat label="Spiergroepen" value={new Set((exItems ?? []).flatMap((x) => [...(x.primaryMuscles ?? []), ...(x.secondaryMuscles ?? [])])).size} />
           </div>
 
-          {/* Uitleg/CTA's */}
           <div className="grid gap-3">
-            <GuideCard
-              title="Exercise Library"
-              text="Zoek losse oefeningen op naam, spiergroep, materiaal of alleen met video."
-              onClick={() => setTab("exercise-library")}
-            />
-            <GuideCard
-              title="Workout Library"
-              text="Complete workouts met filters op doel, niveau, materiaal en duur."
-              onClick={() => setTab("workout-library")}
-            />
-            <GuideCard
-              title="My Workouts"
-              text="Bekijk je sessie-historie en voortgang."
-              onClick={() => setTab("my")}
-            />
+            <GuideCard title="Exercise Library" text="Zoek losse oefeningen op naam, spiergroep, materiaal of alleen met video." onClick={() => setTab("exercise-library")} />
+            <GuideCard title="Workout Library" text="Complete workouts met filters op doel, niveau, materiaal en duur." onClick={() => setTab("workout-library")} />
+            <GuideCard title="My Workouts" text="Bekijk je sessie-historie en voortgang." onClick={() => setTab("my")} />
           </div>
 
           <p className="text-[11px] text-zinc-500 dark:text-zinc-500">
-            Dataset geladen vanaf <code>VITE_WORKOUTS_BASE</code> ({BASE ?? "niet ingesteld"}).
+            Bases: <code>VITE_EXERCISES_BASE</code> → exercises, <code>VITE_WORKOUTS_BASE</code> → workouts.
           </p>
         </section>
       )}
 
-      {/* ===== Exercise Library (losse oefeningen) ===== */}
+      {/* ===== Exercise Library ===== */}
       {tab === "exercise-library" && (
         <>
           <div className="flex gap-2 w-full flex-wrap">
@@ -400,59 +395,29 @@ export default function WorkoutsIndex() {
               className={cx(baseField, q && activeHighlight, "flex-1 sm:w-64")}
               aria-label="Zoek"
             />
-            <select
-              value={level}
-              onChange={(e) => setLevel(e.target.value)}
-              className={cx(selectField, level !== "all" && activeHighlight)}
-              aria-label="Filter op niveau"
-            >
+            <select value={level} onChange={(e) => setLevel(e.target.value)} className={cx(selectField, level !== "all" && activeHighlight)} aria-label="Filter op niveau">
               <option value="all">Alle niveaus</option>
             </select>
-            <select
-              value={equipment}
-              onChange={(e) => setEquipment(e.target.value)}
-              className={cx(selectField, equipment !== "all" && activeHighlight)}
-              aria-label="Filter op materiaal"
-            >
+            <select value={equipment} onChange={(e) => setEquipment(e.target.value)} className={cx(selectField, equipment !== "all" && activeHighlight)} aria-label="Filter op materiaal">
               {equipmentOptions.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt === "all" ? "Alle equipment" : opt}
                 </option>
               ))}
             </select>
-            <select
-              value={regio}
-              onChange={(e) => setRegio(e.target.value as Regio)}
-              className={cx(selectField, regio !== "all" && activeHighlight)}
-              aria-label="Filter op regio"
-            >
+            <select value={regio} onChange={(e) => setRegio(e.target.value as Regio)} className={cx(selectField, regio !== "all" && activeHighlight)} aria-label="Filter op regio">
               {(Object.keys(REGIO_LABEL) as Regio[]).map((key) => (
-                <option key={key} value={key}>
-                  {REGIO_LABEL[key]}
-                </option>
+                <option key={key} value={key}>{REGIO_LABEL[key]}</option>
               ))}
             </select>
-            <label
-              className={cx(
-                baseField,
-                "flex items-center gap-2 cursor-pointer select-none w-auto px-3",
-                hasVideo && activeHighlight
-              )}
-              title="Toon alleen oefeningen met video"
-            >
-              <input
-                type="checkbox"
-                className="accent-orange-500 h-4 w-4"
-                checked={hasVideo}
-                onChange={(e) => setHasVideo(e.target.checked)}
-                aria-label="Alleen met video"
-              />
+            <label className={cx(baseField, "flex items-center gap-2 cursor-pointer select-none w-auto px-3", hasVideo && activeHighlight)} title="Toon alleen oefeningen met video">
+              <input type="checkbox" className="accent-orange-500 h-4 w-4" checked={hasVideo} onChange={(e) => setHasVideo(e.target.checked)} aria-label="Alleen met video" />
               <span>Alleen met video</span>
             </label>
           </div>
 
-          {/* Loading */}
-          {items === null && (
+          {/* Loading / Error / Results */}
+          {exItems === null && (
             <div className="mt-4 grid gap-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="animate-pulse rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">
@@ -462,23 +427,11 @@ export default function WorkoutsIndex() {
               ))}
             </div>
           )}
-
-          {/* Error */}
-          {items !== null && error && <p className="mt-4 text-sm text-red-600 dark:text-red-400">Fout bij laden: {error}</p>}
-
-          {/* Results */}
-          {items !== null && !error && (
+          {exItems !== null && exError && <p className="mt-4 text-sm text-red-600 dark:text-red-400">Fout bij laden: {exError}</p>}
+          {exItems !== null && !exError && (
             <div className="mt-4 grid gap-3">
               {exerciseCards.map((w) => (
-                <WorkoutCard
-                  key={w.id}
-                  id={w.id}
-                  title={w.title}
-                  duration={w.duration}
-                  level={w.level}
-                  tags={w.tags}
-                  thumbnail={w.thumbnail}
-                />
+                <WorkoutCard key={w.id} id={w.id} title={w.title} duration={w.duration} level={w.level} tags={w.tags} thumbnail={w.thumbnail} />
               ))}
               {exerciseCards.length === 0 && <p className="opacity-70">Geen resultaten. Pas je filters aan.</p>}
             </div>
@@ -486,10 +439,9 @@ export default function WorkoutsIndex() {
         </>
       )}
 
-      {/* ===== Workout Library (volledige programma’s uit Supabase) ===== */}
+      {/* ===== Workout Library ===== */}
       {tab === "workout-library" && (
         <section className="space-y-4">
-          {/* Filters */}
           <div className="flex gap-2 flex-wrap">
             <input
               value={wf.q ?? ""}
@@ -498,163 +450,66 @@ export default function WorkoutsIndex() {
               className={cx(baseField, (wf.q ?? "") !== "" && activeHighlight, "flex-1 sm:w-64")}
               aria-label="Zoek workout"
             />
-            <select
-              value={wf.goal ?? ""}
-              onChange={(e) => setWf((f) => ({ ...f, goal: e.target.value || undefined }))}
-              className={selectField}
-              aria-label="Filter op doel"
-            >
+            <select value={wf.goal ?? ""} onChange={(e) => setWf((f) => ({ ...f, goal: e.target.value || undefined }))} className={selectField} aria-label="Filter op doel">
               <option value="">Alle doelen</option>
               <option value="strength">Kracht</option>
-              <option value="hypertrophy">Spieropbouw</option>
-              <option value="fat_loss">Vetverlies</option>
               <option value="conditioning">Conditioning</option>
+              <option value="fat_loss">Vetverlies</option>
               <option value="mobility">Mobiliteit</option>
-              <option value="endurance">Uithouding</option>
-              <option value="event">Event</option>
             </select>
-            <select
-              value={wf.level ?? ""}
-              onChange={(e) => setWf((f) => ({ ...f, level: e.target.value || undefined }))}
-              className={selectField}
-              aria-label="Filter op niveau"
-            >
+            <select value={wf.level ?? ""} onChange={(e) => setWf((f) => ({ ...f, level: e.target.value || undefined }))} className={selectField} aria-label="Filter op niveau">
               <option value="">Alle niveaus</option>
               <option value="beginner">Beginner</option>
               <option value="intermediate">Gevorderd</option>
               <option value="advanced">Advanced</option>
             </select>
-            <select
-              value={wf.equipment ?? "any"}
-              onChange={(e) => setWf((f) => ({ ...f, equipment: e.target.value as WF["equipment"] }))}
-              className={selectField}
-              aria-label="Materiaal"
-            >
+            <select value={wf.equipment ?? "any"} onChange={(e) => setWf((f) => ({ ...f, equipment: e.target.value as WF["equipment"] }))} className={selectField} aria-label="Materiaal">
               <option value="any">Alle materialen</option>
               <option value="with">Met materiaal</option>
-              <option value="without">Zonder materiaal</option>
+              <option value="without">Zonder materiaal (bodyweight)</option>
             </select>
-            <select
-              value={wf.duration ?? "any"}
-              onChange={(e) => setWf((f) => ({ ...f, duration: e.target.value as WF["duration"] }))}
-              className={selectField}
-              aria-label="Duur"
-            >
+            <select value={wf.duration ?? "any"} onChange={(e) => setWf((f) => ({ ...f, duration: e.target.value as WF["duration"] }))} className={selectField} aria-label="Duur">
               <option value="any">Alle tijden</option>
-              <option value="15">15 min</option>
+              <option value="20">20 min</option>
               <option value="30">30 min</option>
               <option value="45">45 min</option>
               <option value="60">60 min</option>
-              <option value="90">90 min</option>
             </select>
-            <button
-              className={cx(baseField, "px-3 h-10")}
-              onClick={() => setWf({ equipment: "any", duration: "any" })}
-            >
+            <button className={cx(baseField, "px-3 h-10")} onClick={() => setWf({ equipment: "any", duration: "any" })}>
               Reset
             </button>
           </div>
 
-          {/* Data */}
           {woErr && <div className="text-sm text-red-600 dark:text-red-400">Error: {woErr}</div>}
-          {woLoading ? (
+          {woLoading && woChunksLoaded === 0 ? (
             <div className="grid gap-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="h-24 rounded-2xl bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
               ))}
             </div>
-          ) : workouts.length ? (
+          ) : workoutCards.length ? (
             <div className="grid gap-3">
-              {workouts.map((w) => (
-                <WorkoutCard
-                  key={w.id}
-                  id={w.id}
-                  title={w.title}
-                  duration={w.duration_minutes ?? undefined}  // ✅ null-safe
-                  level={w.level ?? undefined}                 // ✅ null-safe
-                  tags={[]}
-                  thumbnail={undefined}
-                  /** 🔑 BELANGRIJK: ga naar Program-detail i.p.v. Exercise-detail */
-                  to={`/modules/programs/${w.id}`}
-                />
+              {workoutCards.map((w) => (
+                <WorkoutCard key={w.id} id={w.id} title={w.title} duration={w.duration} level={w.level} tags={w.tags} thumbnail={w.thumbnail} />
               ))}
             </div>
           ) : (
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              Geen workouts gevonden. Pas je filters aan of voeg workouts toe in Supabase (Table Editor → <code>workouts</code>).
-            </div>
+            <div className="text-sm text-zinc-500 dark:text-zinc-400">Geen workouts gevonden. Pas je filters aan.</div>
           )}
         </section>
       )}
 
-      {/* ===== My Workouts (compacte geschiedenis) ===== */}
-      {tab === "my" && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Laatste sessies</h2>
-            <a
-              href="/modules/workouts/logs"
-              className="text-sm underline decoration-orange-500 decoration-2 underline-offset-2 hover:opacity-80"
-            >
-              Volledige geschiedenis
-            </a>
-          </div>
+      {/* ===== My Workouts ===== */}
+      {tab === "my" && <MyWorkoutsCompact />}
 
-          {recent === null ? (
-            <div className="space-y-2">
-              <div className="h-16 animate-pulse rounded-2xl bg-muted/40" />
-              <div className="h-16 animate-pulse rounded-2xl bg-muted/40" />
-            </div>
-          ) : recent.length === 0 ? (
-            <div className="rounded-2xl border bg-card p-6 text-center text-sm text-muted-foreground">
-              Nog geen sessies opgeslagen. Start een workout via de library.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {recent.map((s) => (
-                <a
-                  key={s.id}
-                  href={`/modules/programs/${encodeURIComponent(s.workout_id)}?sid=${s.id}`}
-                  className="block rounded-2xl border bg-card p-4 shadow-sm hover:bg-accent"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-base font-semibold">{s.workout_title ?? "Workout"}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(s.started_at).toLocaleString()}
-                        {s.completed_at ? ` • voltooid` : ` • actief`}
-                      </div>
-                    </div>
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs ${
-                        s.status === "completed"
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                          : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                      }`}
-                    >
-                      {s.status}
-                    </span>
-                  </div>
-                </a>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {tab === "badges" && (
-        <div className="mt-6 opacity-80">
-          <p>Badges-overzicht komt hier. (Volgende PR: badge engine + grid.)</p>
-        </div>
-      )}
-
+      {tab === "badges" && <div className="mt-6 opacity-80"><p>Badges-overzicht komt hier.</p></div>}
       {tab === "help" && (
         <div className="mt-6 space-y-3">
           <h2 className="text-lg font-semibold">Help</h2>
           <ul className="list-disc pl-5 space-y-2">
             <li><b>Exercise Library</b>: losse oefeningen vinden (spier, materiaal, video).</li>
-            <li><b>Workout Library</b>: complete workouts met doel/niveau/locatie/materiaal/duur.</li>
-            <li><b>My Workouts</b>: jouw sessie-historie (na voltooien).</li>
+            <li><b>Workout Library</b>: complete workouts met doel/niveau/materiaal/duur.</li>
+            <li><b>My Workouts</b>: sessie-historie na voltooien.</li>
           </ul>
         </div>
       )}
@@ -662,16 +517,12 @@ export default function WorkoutsIndex() {
   );
 }
 
-/** Kleine UI helpers */
+/** ---- Kleine subcomponenten ---- */
 function Kpi({ title, value, hint, loading }: { title: string; value: number | string; hint?: string; loading?: boolean }) {
   return (
     <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 bg-white/70 dark:bg-zinc-900/60">
       <div className="text-xs text-zinc-500 dark:text-zinc-400">{title}</div>
-      {loading ? (
-        <div className="mt-1 h-7 w-16 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-      ) : (
-        <div className="text-2xl font-semibold mt-1">{value}</div>
-      )}
+      {loading ? <div className="mt-1 h-7 w-16 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" /> : <div className="text-2xl font-semibold mt-1">{value}</div>}
       {hint && <div className="text-[11px] text-zinc-500 mt-1">{hint}</div>}
     </div>
   );
@@ -696,5 +547,67 @@ function GuideCard({ title, text, onClick }: { title: string; text: string; onCl
       <div className="font-semibold">{title}</div>
       <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">{text}</p>
     </button>
+  );
+}
+
+function MyWorkoutsCompact() {
+  const [recent, setRecent] = useState<Array<{ id: string; workout_id: string; workout_title?: string | null; status: string; started_at: string; completed_at?: string | null }> | null>(null);
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("workout_sessions")
+          .select("id, workout_id, workout_title, status, started_at, completed_at")
+          .order("started_at", { ascending: false })
+          .limit(5);
+        if (error) throw error;
+        if (on) setRecent(data as any);
+      } catch {
+        if (on) setRecent([]);
+      }
+    })();
+    return () => { on = false; };
+  }, []);
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Laatste sessies</h2>
+        <a href="/modules/workouts/logs" className="text-sm underline decoration-orange-500 decoration-2 underline-offset-2 hover:opacity-80">
+          Volledige geschiedenis
+        </a>
+      </div>
+
+      {recent === null ? (
+        <div className="space-y-2">
+          <div className="h-16 animate-pulse rounded-2xl bg-muted/40" />
+          <div className="h-16 animate-pulse rounded-2xl bg-muted/40" />
+        </div>
+      ) : recent.length === 0 ? (
+        <div className="rounded-2xl border bg-card p-6 text-center text-sm text-muted-foreground">
+          Nog geen sessies opgeslagen. Start een workout via de library.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {recent.map((s) => (
+            <a key={s.id} href={`/modules/programs/${encodeURIComponent(s.workout_id)}?sid=${s.id}`} className="block rounded-2xl border bg-card p-4 shadow-sm hover:bg-accent">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-base font-semibold">{s.workout_title ?? "Workout"}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(s.started_at).toLocaleString()}
+                    {s.completed_at ? ` • voltooid` : ` • actief`}
+                  </div>
+                </div>
+                <span className={`rounded-full px-2 py-1 text-xs ${s.status === "completed" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
+                  {s.status}
+                </span>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
