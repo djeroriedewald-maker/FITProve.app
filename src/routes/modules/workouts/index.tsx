@@ -94,7 +94,12 @@ export default function WorkoutsIndex() {
     return () => { mounted = false; };
   }, []);
 
-  /** ===== KPI's voor Home ===== */
+  /** ===== KPI's voor Home: gevraagd set =====
+   * - Oefeningen in library (van BASE dataset)
+   * - Workouts in library (Supabase table `workouts`)
+   * - Workouts gedaan (user) (Supabase table `workout_sessions` met status=completed)
+   * - Badges verdiend (user) (Supabase table `user_badges`)
+   */
   const [kpi, setKpi] = useState({
     exercisesInLibrary: 0,
     workoutsInLibrary: 0,
@@ -103,17 +108,20 @@ export default function WorkoutsIndex() {
     loading: true,
   });
 
+  // update exercises KPI zodra items geladen zijn
   useEffect(() => {
     setKpi((s) => ({ ...s, exercisesInLibrary: (items ?? []).length }));
   }, [items]);
 
+  // laad overige KPI's (Supabase); veilig met fallbacks als tabellen ontbreken
   useEffect(() => {
     let on = true;
     (async () => {
       try {
+        // Auth check (RLS): alleen eigen rijen zichtbaar
         await supabase.auth.getUser();
 
-        // Workouts in library
+        // Workouts in library (count)
         let workoutsInLibrary = 0;
         try {
           const { count: wCount } = await supabase
@@ -121,11 +129,12 @@ export default function WorkoutsIndex() {
             .select("id", { count: "exact", head: true });
           workoutsInLibrary = wCount ?? 0;
         } catch {
-          const list = await listWorkouts({});
+          // fallback: snelle fetch via listWorkouts
+          const list = await listWorkouts({}); // kan leeg zijn
           workoutsInLibrary = (list ?? []).length;
         }
 
-        // Workouts gedaan
+        // Workouts gedaan (completed sessions)
         let workoutsDone = 0;
         try {
           const { count } = await supabase
@@ -133,7 +142,9 @@ export default function WorkoutsIndex() {
             .select("id", { count: "exact" })
             .eq("status", "completed");
           workoutsDone = count ?? 0;
-        } catch {}
+        } catch {
+          workoutsDone = 0;
+        }
 
         // Badges verdiend
         let badgesEarned = 0;
@@ -142,10 +153,18 @@ export default function WorkoutsIndex() {
             .from("user_badges")
             .select("id", { count: "exact" });
           badgesEarned = count ?? 0;
-        } catch {}
+        } catch {
+          badgesEarned = 0;
+        }
 
         if (!on) return;
-        setKpi((s) => ({ ...s, workoutsInLibrary, workoutsDone, badgesEarned, loading: false }));
+        setKpi((s) => ({
+          ...s,
+          workoutsInLibrary,
+          workoutsDone,
+          badgesEarned,
+          loading: false,
+        }));
       } catch {
         if (!on) return;
         setKpi((s) => ({ ...s, loading: false }));
@@ -154,7 +173,7 @@ export default function WorkoutsIndex() {
     return () => { on = false; };
   }, []);
 
-  /** Afgeleide stats + filters voor Exercise Library */
+  /** Exercise Library afgeleide stats & filters (blijven bestaan voor die tab) */
   const statsExtra = useMemo(() => {
     const list = items ?? [];
     const withVideo = list.filter((x) => (x.media?.videos?.length ?? 0) > 0).length;
@@ -165,8 +184,9 @@ export default function WorkoutsIndex() {
     return { withVideo, equipments: equipSet.size, muscles: musclesSet.size };
   }, [items]);
 
+  /** Exercise Library filters */
   const [q, setQ] = useState("");
-  const [level, setLevel] = useState<string>("all");
+  const [level, setLevel] = useState<string>("all"); // (nog niet actief in dataset)
   const [equipment, setEquipment] = useState<string>("all");
   const [hasVideo, setHasVideo] = useState<boolean>(false);
   const [regio, setRegio] = useState<Regio>("all");
@@ -189,7 +209,7 @@ export default function WorkoutsIndex() {
           x.primaryMuscles.some((m) => m.toLowerCase().includes(qnorm)) ||
           (x.secondaryMuscles ?? []).some((m) => m.toLowerCase().includes(qnorm));
         const okEquip = equipment === "all" ? true : x.equipment.includes(equipment);
-        const okLevel = level === "all" ? true : true;
+        const okLevel = level === "all" ? true : true; // momenteel geen level in dataset
         const okVideo = !hasVideo || ((x.media?.videos?.length ?? 0) > 0);
         const okRegio = exerciseMatchesRegio(x, regio);
         return okQ && okEquip && okLevel && okVideo && okRegio;
@@ -228,6 +248,7 @@ export default function WorkoutsIndex() {
   const [woLoading, setWoLoading] = useState<boolean>(false);
   const [woErr, setWoErr] = useState<string | undefined>();
 
+  // Laad alleen wanneer tab == "workout-library" of filters veranderen in die tab
   useEffect(() => {
     if (tab !== "workout-library") return;
     let on = true;
@@ -249,7 +270,7 @@ export default function WorkoutsIndex() {
     return () => { on = false; };
   }, [tab, wf]);
 
-  /** My Workouts (compacte geschiedenis) */
+  /** My Workouts (compacte geschiedenis in deze file; volledige pagina op /modules/workouts/logs) */
   type Session = { id: string; workout_id: string; workout_title?: string | null; status: string; started_at: string; completed_at?: string | null };
   const [recent, setRecent] = useState<Session[] | null>(null);
   useEffect(() => {
@@ -328,7 +349,7 @@ export default function WorkoutsIndex() {
       {/* ===== HOME (Landing) ===== */}
       {tab === "home" && (
         <section className="space-y-6">
-          {/* KPI's */}
+          {/* KPI's — gevraagd set */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Kpi title="Oefeningen" value={kpi.exercisesInLibrary} hint="in library" loading={kpi.loading && (items === null)} />
             <Kpi title="Workouts" value={kpi.workoutsInLibrary} hint="in library" loading={kpi.loading} />
@@ -336,14 +357,14 @@ export default function WorkoutsIndex() {
             <Kpi title="Badges" value={kpi.badgesEarned} hint="verdiend" loading={kpi.loading} />
           </div>
 
-          {/* Extra mini-statistieken */}
+          {/* Extra informatieve mini-statistiek (alleen visueel; geen KPI) */}
           <div className="grid grid-cols-3 gap-3">
             <MiniStat label="Met video" value={statsExtra.withVideo} />
             <MiniStat label="Materiaaltypes" value={statsExtra.equipments} />
             <MiniStat label="Spiergroepen" value={statsExtra.muscles} />
           </div>
 
-          {/* CTA's */}
+          {/* Uitleg/CTA's */}
           <div className="grid gap-3">
             <GuideCard
               title="Exercise Library"

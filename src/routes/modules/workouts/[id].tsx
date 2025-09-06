@@ -30,7 +30,7 @@ async function getJSON<T>(url: string): Promise<T> {
 export default function WorkoutDetail() {
   const { id } = useParams<{ id: string }>();
   const [exercise, setExercise] = useState<Exercise | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null); // state setter gebruiken we wel; de waarde zelf renderen we (nog) niet
 
   useEffect(() => {
     let mounted = true;
@@ -48,12 +48,15 @@ export default function WorkoutDetail() {
         }
         if (mounted) setExercise(null);
       } catch (e: any) {
+        // Loggen is handig voor debugging; UI-melding komt later.
         console.error(e);
         if (mounted) setError(e?.message ?? "Kon oefening niet laden.");
       }
     }
     loadOne();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [id]);
 
   const hasVideo = useMemo(() => (exercise?.media?.videos?.length ?? 0) > 0, [exercise]);
@@ -65,11 +68,17 @@ export default function WorkoutDetail() {
       const existing = JSON.parse(localStorage.getItem(key) || "[]") as string[];
       const next = Array.from(new Set([...existing, exercise.id]));
       localStorage.setItem(key, JSON.stringify(next));
+      // Optioneel: UI toast later; alert is prima voor nu.
       alert(`Toegevoegd aan eigen workout: ${exercise.name}`);
     } catch {
       alert("Kon niet opslaan in je eigen workout.");
     }
   }
+
+  const heroSrc =
+    exercise?.media?.images?.[0] ??
+    exercise?.media?.thumbnail ??
+    undefined;
 
   return (
     <section className="px-4 py-6 max-w-3xl mx-auto space-y-4">
@@ -129,11 +138,11 @@ export default function WorkoutDetail() {
       </div>
 
       {/* Hero media */}
-      {exercise?.media?.images?.[0] || exercise?.media?.thumbnail ? (
+      {heroSrc ? (
         <div className="rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800">
           <img
-            src={exercise.media.images?.[0] ?? exercise.media.thumbnail!}
-            alt={exercise.name}
+            src={heroSrc}
+            alt={exercise?.name ?? "Oefening"}
             className="w-full h-64 object-cover"
             loading="lazy"
           />
@@ -145,7 +154,9 @@ export default function WorkoutDetail() {
         <h2 className="text-lg font-semibold">Instructies</h2>
         {exercise?.instructions?.length ? (
           <ol className="mt-2 list-decimal pl-5 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
-            {exercise.instructions.map((step, i) => <li key={i}>{step}</li>)}
+            {exercise.instructions.map((step, i) => (
+              <li key={i}>{step}</li>
+            ))}
           </ol>
         ) : (
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
@@ -155,9 +166,7 @@ export default function WorkoutDetail() {
       </section>
 
       {/* Footer */}
-      <p className="text-[11px] text-zinc-500 dark:text-zinc-500">
-        Oefening ID: {exercise?.id ?? id}
-      </p>
+      <p className="text-[11px] text-zinc-500 dark:text-zinc-500">Oefening ID: {exercise?.id ?? id}</p>
     </section>
   );
 }
