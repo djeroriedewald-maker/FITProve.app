@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import WorkoutCard from "@/components/workouts/WorkoutCard";
 import { listWorkouts } from "@/lib/workouts-client";
 import type { Workout as WorkoutT } from "@/types/workouts";
+import { supabase } from "@/lib/supabaseClient";
 
 /** === Types voor Exercise Library (losse oefeningen) === */
 type Media = { images?: string[]; gifs?: string[]; videos?: string[]; thumbnail?: string };
@@ -65,7 +66,7 @@ export default function WorkoutsIndex() {
   const [tab, setTab] = useState<Tab>("home");
 
   // =========================
-  // Exercise Library (losse oefeningen)
+  // Exercise Library (losse oefeningen) — nodig voor KPI "Oefeningen"
   // =========================
   const [items, setItems] = useState<Exercise[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -93,15 +94,94 @@ export default function WorkoutsIndex() {
     return () => { mounted = false; };
   }, []);
 
-  /** Stats (voor Home) */
-  const stats = useMemo(() => {
+  /** ===== KPI's voor Home: gevraagd set =====
+   * - Oefeningen in library (van BASE dataset)
+   * - Workouts in library (Supabase table `workouts`)
+   * - Workouts gedaan (user) (Supabase table `workout_sessions` met status=completed)
+   * - Badges verdiend (user) (Supabase table `user_badges`)
+   */
+  const [kpi, setKpi] = useState({
+    exercisesInLibrary: 0,
+    workoutsInLibrary: 0,
+    workoutsDone: 0,
+    badgesEarned: 0,
+    loading: true,
+  });
+
+  // update exercises KPI zodra items geladen zijn
+  useEffect(() => {
+    setKpi((s) => ({ ...s, exercisesInLibrary: (items ?? []).length }));
+  }, [items]);
+
+  // laad overige KPI's (Supabase); veilig met fallbacks als tabellen ontbreken
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
+        // Auth check (RLS): alleen eigen rijen zichtbaar
+        await supabase.auth.getUser();
+
+        // Workouts in library (count)
+        let workoutsInLibrary = 0;
+        try {
+          const { count: wCount } = await supabase
+            .from("workouts")
+            .select("id", { count: "exact", head: true });
+          workoutsInLibrary = wCount ?? 0;
+        } catch {
+          // fallback: snelle fetch via listWorkouts
+          const list = await listWorkouts({}); // kan leeg zijn
+          workoutsInLibrary = (list ?? []).length;
+        }
+
+        // Workouts gedaan (completed sessions)
+        let workoutsDone = 0;
+        try {
+          const { count } = await supabase
+            .from("workout_sessions")
+            .select("id", { count: "exact" })
+            .eq("status", "completed");
+          workoutsDone = count ?? 0;
+        } catch {
+          workoutsDone = 0;
+        }
+
+        // Badges verdiend
+        let badgesEarned = 0;
+        try {
+          const { count } = await supabase
+            .from("user_badges")
+            .select("id", { count: "exact" });
+          badgesEarned = count ?? 0;
+        } catch {
+          badgesEarned = 0;
+        }
+
+        if (!on) return;
+        setKpi((s) => ({
+          ...s,
+          workoutsInLibrary,
+          workoutsDone,
+          badgesEarned,
+          loading: false,
+        }));
+      } catch {
+        if (!on) return;
+        setKpi((s) => ({ ...s, loading: false }));
+      }
+    })();
+    return () => { on = false; };
+  }, []);
+
+  /** Exercise Library afgeleide stats & filters (blijven bestaan voor die tab) */
+  const statsExtra = useMemo(() => {
     const list = items ?? [];
     const withVideo = list.filter((x) => (x.media?.videos?.length ?? 0) > 0).length;
     const equipSet = new Set<string>();
     list.forEach((x) => x.equipment?.forEach((e) => equipSet.add(e)));
     const musclesSet = new Set<string>();
     list.forEach((x) => [...(x.primaryMuscles ?? []), ...(x.secondaryMuscles ?? [])].forEach((m) => musclesSet.add(m)));
-    return { total: list.length, withVideo, equipments: equipSet.size, muscles: musclesSet.size };
+    return { withVideo, equipments: equipSet.size, muscles: musclesSet.size };
   }, [items]);
 
   /** Exercise Library filters */
@@ -190,6 +270,28 @@ export default function WorkoutsIndex() {
     return () => { on = false; };
   }, [tab, wf]);
 
+  /** My Workouts (compacte geschiedenis in deze file; volledige pagina op /modules/workouts/logs) */
+  type Session = { id: string; workout_id: string; workout_title?: string | null; status: string; started_at: string; completed_at?: string | null };
+  const [recent, setRecent] = useState<Session[] | null>(null);
+  useEffect(() => {
+    if (tab !== "my") return;
+    let on = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("workout_sessions")
+          .select("id, workout_id, workout_title, status, started_at, completed_at")
+          .order("started_at", { ascending: false })
+          .limit(5);
+        if (error) throw error;
+        if (on) setRecent(data as Session[]);
+      } catch {
+        if (on) setRecent([]);
+      }
+    })();
+    return () => { on = false; };
+  }, [tab]);
+
   /** Shared UI styles */
   const baseField =
     "h-10 text-sm rounded-lg border px-3 outline-none transition " +
@@ -211,6 +313,7 @@ export default function WorkoutsIndex() {
     tab === "home" ? "Workouts"
     : tab === "exercise-library" ? "Oefeningen"
     : tab === "workout-library" ? "Workout Library"
+    : tab === "my" ? "My Workouts"
     : "Workouts";
 
   return (
@@ -246,12 +349,19 @@ export default function WorkoutsIndex() {
       {/* ===== HOME (Landing) ===== */}
       {tab === "home" && (
         <section className="space-y-6">
-          {/* Stats */}
+          {/* KPI's — gevraagd set */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Kpi title="Oefeningen" value={stats.total} hint="Totaal in library" />
-            <Kpi title="Met video" value={stats.withVideo} hint="Directe voorbeelden" />
-            <Kpi title="Materiaal" value={stats.equipments} hint="Unieke equipment" />
-            <Kpi title="Spieren" value={stats.muscles} hint="Primaire/secondaire" />
+            <Kpi title="Oefeningen" value={kpi.exercisesInLibrary} hint="in library" loading={kpi.loading && (items === null)} />
+            <Kpi title="Workouts" value={kpi.workoutsInLibrary} hint="in library" loading={kpi.loading} />
+            <Kpi title="Gedaan" value={kpi.workoutsDone} hint="workouts" loading={kpi.loading} />
+            <Kpi title="Badges" value={kpi.badgesEarned} hint="verdiend" loading={kpi.loading} />
+          </div>
+
+          {/* Extra informatieve mini-statistiek (alleen visueel; geen KPI) */}
+          <div className="grid grid-cols-3 gap-3">
+            <MiniStat label="Met video" value={statsExtra.withVideo} />
+            <MiniStat label="Materiaaltypes" value={statsExtra.equipments} />
+            <MiniStat label="Spiergroepen" value={statsExtra.muscles} />
           </div>
 
           {/* Uitleg/CTA's */}
@@ -477,10 +587,59 @@ export default function WorkoutsIndex() {
         </section>
       )}
 
+      {/* ===== My Workouts (compacte geschiedenis) ===== */}
       {tab === "my" && (
-        <div className="mt-6 opacity-80">
-          <p>Nog geen opgeslagen workouts. (Volgende PR: favorieten + eigen templates.)</p>
-        </div>
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Laatste sessies</h2>
+            <a
+              href="/modules/workouts/logs"
+              className="text-sm underline decoration-orange-500 decoration-2 underline-offset-2 hover:opacity-80"
+            >
+              Volledige geschiedenis
+            </a>
+          </div>
+
+          {recent === null ? (
+            <div className="space-y-2">
+              <div className="h-16 animate-pulse rounded-2xl bg-muted/40" />
+              <div className="h-16 animate-pulse rounded-2xl bg-muted/40" />
+            </div>
+          ) : recent.length === 0 ? (
+            <div className="rounded-2xl border bg-card p-6 text-center text-sm text-muted-foreground">
+              Nog geen sessies opgeslagen. Start een workout via de library.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recent.map((s) => (
+                <a
+                  key={s.id}
+                  href={`/modules/programs/${encodeURIComponent(s.workout_id)}?sid=${s.id}`}
+                  className="block rounded-2xl border bg-card p-4 shadow-sm hover:bg-accent"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-base font-semibold">{s.workout_title ?? "Workout"}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(s.started_at).toLocaleString()}
+                        {s.completed_at ? ` • voltooid` : ` • actief`}
+                      </div>
+                    </div>
+                    <span
+                      className={`rounded-full px-2 py-1 text-xs ${
+                        s.status === "completed"
+                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                          : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                      }`}
+                    >
+                      {s.status}
+                    </span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       {tab === "badges" && (
@@ -503,13 +662,25 @@ export default function WorkoutsIndex() {
   );
 }
 
-/** Kleine UI helpers voor Home */
-function Kpi({ title, value, hint }: { title: string; value: number | string; hint?: string }) {
+/** Kleine UI helpers */
+function Kpi({ title, value, hint, loading }: { title: string; value: number | string; hint?: string; loading?: boolean }) {
   return (
     <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 bg-white/70 dark:bg-zinc-900/60">
       <div className="text-xs text-zinc-500 dark:text-zinc-400">{title}</div>
-      <div className="text-2xl font-semibold mt-1">{value}</div>
+      {loading ? (
+        <div className="mt-1 h-7 w-16 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+      ) : (
+        <div className="text-2xl font-semibold mt-1">{value}</div>
+      )}
       {hint && <div className="text-[11px] text-zinc-500 mt-1">{hint}</div>}
+    </div>
+  );
+}
+function MiniStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 bg-white/60 dark:bg-zinc-900/50">
+      <div className="text-[11px] text-zinc-500">{label}</div>
+      <div className="mt-1 text-lg font-semibold">{value}</div>
     </div>
   );
 }

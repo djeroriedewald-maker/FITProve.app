@@ -1,72 +1,110 @@
-export type WorkoutGoal = 'strength'|'hypertrophy'|'fat_loss'|'conditioning'|'mobility'|'endurance'|'event';
-export type WorkoutLevel = 'beginner'|'intermediate'|'advanced';
-export type WorkoutLocation = 'gym'|'outdoor'|'home';
-export type LoadType = 'bodyweight'|'dumbbell'|'barbell'|'kettlebell'|'machine'|'band'|'cable'|'other';
+// src/types/workout.ts
+// ✅ Types afgestemd op jouw huidige code én client.
+//    Inclusief alias + SetLog types die zowel exercise_id/time_sec
+//    als workout_exercise_id/time_seconds ondersteunen.
 
-export interface Workout {
+export type Workout = {
   id: string;
-  slug: string;
   title: string;
   description?: string | null;
-  goal: WorkoutGoal;
-  level: WorkoutLevel;
-  location: WorkoutLocation;
-  equipment_required: boolean;
-  duration_minutes: number;
-  estimated_difficulty: number; // 1..5
-  is_published: boolean;
-  created_at: string;
-  updated_at: string;
-  tags?: string[];
-}
+  goal?: string | null;
+  level?: string | null;
+  location?: string | null;
+  duration_minutes?: number | null;
+  equipment_required?: boolean | null;
+};
 
-export interface WorkoutBlock {
+export type WorkoutBlock = {
   id: string;
   workout_id: string;
+  sequence: number;
   title?: string | null;
   note?: string | null;
-  sequence: number;
-  type: string;
-}
+};
 
-export interface WorkoutExercise {
+export type WorkoutExercise = {
   id: string;
   block_id: string;
-  exercise_ref: string; // "exdb:push_up"
-  display_name: string;
   sequence: number;
-  target_sets: number;
+  display_name: string;
+  target_sets?: number | null;
   target_reps?: number | null;
   target_time_seconds?: number | null;
-  target_load?: LoadType | null;
-  tempo?: string | null;
   rest_seconds?: number | null;
-}
+  tempo?: string | null;
 
-export interface UserWorkoutSession {
+  // optionele media velden
+  video_url?: string | null;
+  gif_url?: string | null;
+  image_url?: string | null;
+  thumbnail?: string | null;
+
+  media?: {
+    videos?: string[];
+    gifs?: string[];
+    images?: string[];
+  };
+};
+
+export type UserWorkoutSession = {
   id: string;
-  user_id: string;
   workout_id: string;
+  user_id: string;
+  status: "active" | "completed" | "cancelled";
   started_at: string;
-  ended_at?: string | null;
-  notes?: string | null;
-  device_summary?: Record<string, unknown> | null;
-  calories?: number | null;
-  avg_hr?: number | null;
-  max_hr?: number | null;
-  distance_m?: number | null;
-  is_completed: boolean;
-  created_at: string;
-}
+  completed_at?: string | null;
+  duration_sec?: number | null;
+};
 
-export interface UserWorkoutSet {
+/** Alias die soms in code gebruikt wordt */
+export type WorkoutSession = UserWorkoutSession;
+
+/** Set-log uit DB. Ondersteunt beide naamvarianten voor compat. */
+export type SetLog = {
   id: string;
   session_id: string;
-  workout_exercise_id: string;
+
+  // sommige implementaties gebruiken 'exercise_id', andere 'workout_exercise_id'
+  exercise_id?: string;
+  workout_exercise_id?: string;
+
+  exercise_name?: string | null;
   set_index: number;
+
   reps?: number | null;
   weight_kg?: number | null;
+
+  // beide varianten gedoogd
+  time_sec?: number | null;
   time_seconds?: number | null;
+
+  distance_m?: number | null;
   rpe?: number | null;
-  completed_at?: string | null;
-}
+  completed?: boolean | null;
+  notes?: string | null;
+
+  created_at?: string;
+  updated_at?: string;
+};
+
+/** Upsert payload richting client/DB – beide naamvarianten toegestaan */
+export type SetLogUpsert = {
+  session_id: string;
+
+  exercise_id?: string;
+  workout_exercise_id?: string;
+
+  exercise_name?: string;
+  set_index: number;
+
+  reps?: number | null;
+  weight_kg?: number | null;
+
+  time_sec?: number | null;
+  time_seconds?: number | null;
+
+  distance_m?: number | null;
+  rpe?: number | null;
+  completed?: boolean | null;
+  notes?: string | null;
+};
