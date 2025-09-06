@@ -6,7 +6,7 @@ import WorkoutLogger from "@/components/workouts/WorkoutLogger";
 import {
   getWorkoutFull,
   startSession,
-  completeSession,
+  completeSession as completeSessionApi,
   listSessionSets,
   addOrUpdateSet,
 } from "@/lib/workouts-client";
@@ -19,7 +19,19 @@ import type {
   SetLogUpsert,
 } from "@/types/workout";
 
-/** Kleine util */
+/** === Types alleen voor deze file (verwacht door WorkoutLogger) === */
+type ExistingSet = {
+  session_id: string;
+  exercise_id: string; // verplicht
+  set_index: number;
+  reps?: number | null;
+  weight_kg?: number | null;
+  time_seconds?: number | null;
+  rpe?: number | null;
+  notes?: string | null;
+  completed?: boolean | null;
+};
+
 function firstDefined<T>(...vals: Array<T | null | undefined>): T | undefined {
   for (const v of vals) if (v != null) return v as T;
   return undefined;
@@ -49,7 +61,6 @@ export default function ProgramDetail() {
         setBlocks(data.blocks || []);
         setExercises(data.exercises || []);
 
-        // Als er een sid in de URL zit, laat logger direct zien
         if (sidFromUrl) {
           setSession({
             id: sidFromUrl,
@@ -68,7 +79,9 @@ export default function ProgramDetail() {
         if (on) setLoading(false);
       }
     })();
-    return () => { on = false; };
+    return () => {
+      on = false;
+    };
   }, [id, sidFromUrl]);
 
   const exByBlock = useMemo(() => {
@@ -87,13 +100,11 @@ export default function ProgramDetail() {
       if (!id) return;
       const s = await startSession(id);
       setSession(s);
-      // smooth scroll to logger
       window.requestAnimationFrame(() => {
         try {
           window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
         } catch {
-          // ignore scroll error
-          void 0;
+          /* noop */
         }
       });
     } catch (e: any) {
@@ -101,7 +112,6 @@ export default function ProgramDetail() {
     }
   }
 
-  // Helpers
   function previewUrl(x: WorkoutExercise): string | undefined {
     return firstDefined(
       x.media?.videos?.[0],
@@ -178,9 +188,7 @@ export default function ProgramDetail() {
                 className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/60 p-4"
               >
                 <div className="font-semibold">{b.title ?? `Circuit ${b.sequence}`}</div>
-                {b.note ? (
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400">{b.note}</p>
-                ) : null}
+                {b.note ? <p className="text-sm text-zinc-600 dark:text-zinc-400">{b.note}</p> : null}
 
                 <div className="mt-2 space-y-2">
                   {(exByBlock.get(b.id) ?? []).map((x) => {
@@ -231,9 +239,25 @@ export default function ProgramDetail() {
             session={session}
             exercises={exercises}
             onSaveSet={(payload: SetLogUpsert) => addOrUpdateSet(payload)}
-            loadSets={(sid: string) => listSessionSets(sid)}
+            loadSets={async (sid: string): Promise<ExistingSet[]> => {
+              // Adapter: map DB-rows → Expected shape
+              const rows = await listSessionSets(sid as string);
+              return (rows ?? [])
+                .filter((r: any) => typeof r?.exercise_id === "string")
+                .map((r: any) => ({
+                  session_id: String(r.session_id),
+                  exercise_id: String(r.exercise_id),
+                  set_index: Number(r.set_index ?? 0),
+                  reps: r.reps ?? null,
+                  weight_kg: r.weight_kg ?? null,
+                  time_seconds: r.time_seconds ?? null,
+                  rpe: r.rpe ?? null,
+                  notes: r.notes ?? null,
+                  completed: r.completed ?? null,
+                }));
+            }}
             completeSession={async (sid: string) => {
-              const s = await completeSession(sid);
+              const s = await completeSessionApi(sid);
               setSession(s);
               return s;
             }}
