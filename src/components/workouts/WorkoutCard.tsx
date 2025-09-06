@@ -1,50 +1,92 @@
 // src/components/workouts/WorkoutCard.tsx
 import { Link } from "react-router-dom";
+import { useState, useMemo } from "react";
 
 type Props = {
   id: string;
   title: string;
-  duration?: number | null;
-  level?: "beginner" | "intermediate" | "advanced" | string;
+  duration?: number;
+  level?: string;
   tags?: string[];
-  thumbnail?: string; // NEW
+  thumbnail?: string;
+  /** Optioneel: forceer een specifieke link i.p.v. standaard /modules/workouts/:id */
+  to?: string;
 };
 
-export default function WorkoutCard({ id, title, duration, level, tags, thumbnail }: Props) {
+export default function WorkoutCard({
+  id,
+  title,
+  duration,
+  level,
+  tags = [],
+  thumbnail,
+  to,
+}: Props) {
+  const [imgOk, setImgOk] = useState<boolean>(!!thumbnail);
+
+  const meta = useMemo(() => {
+    const parts: string[] = [];
+    if (level) parts.push(level);
+    if (duration) parts.push(`${duration} min`);
+    return parts.join(" • ");
+  }, [level, duration]);
+
+  const href = to ?? `/modules/workouts/${id}`;
+
   return (
     <Link
-      to={`/modules/workouts/${id}`}
-      className="block rounded-2xl p-4 border border-neutral-800 hover:bg-neutral-900 transition-shadow shadow-sm"
+      to={href}
+      aria-label={meta ? `${title} – ${meta}` : title}
+      className={[
+        "block rounded-2xl p-4",
+        "border transition",
+        "bg-white border-zinc-200 text-zinc-900",
+        "dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-100",
+        "hover:bg-zinc-50 hover:border-zinc-300",
+        "dark:hover:bg-zinc-800/80 dark:hover:border-zinc-700",
+        "focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500",
+        "active:scale-[0.998]",
+      ].join(" ")}
     >
-      <div className="flex items-center gap-4">
-        {thumbnail && (
+      <div className="flex items-center gap-3">
+        {imgOk && thumbnail ? (
           <img
             src={thumbnail}
-            alt=""
-            className="h-16 w-16 rounded-lg object-cover border border-neutral-700 flex-shrink-0"
+            alt={title}
             loading="lazy"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
-            }}
+            decoding="async"
+            className="h-16 w-16 rounded-lg object-cover border border-zinc-200 dark:border-zinc-800 flex-shrink-0"
+            onError={() => setImgOk(false)}
           />
+        ) : (
+          <div className="h-16 w-16 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-[11px] text-zinc-500 dark:text-zinc-400 flex-shrink-0">
+            Geen foto
+          </div>
         )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold truncate">{title}</h3>
-            {duration ? <span className="text-sm opacity-70">{duration} min</span> : null}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {level && (
-              <span className="text-xs px-2 py-1 rounded-full border border-neutral-700">
-                {level}
-              </span>
-            )}
-            {(tags ?? []).slice(0, 3).map((t) => (
-              <span key={t} className="text-xs px-2 py-1 rounded-full border border-neutral-700">
-                {t}
-              </span>
-            ))}
-          </div>
+
+        <div className="min-w-0 flex-1">
+          <h3 className="font-semibold truncate">{title}</h3>
+
+          {meta && (
+            <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">
+              {meta}
+            </p>
+          )}
+
+          {tags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {tags.slice(0, 4).map((t) => (
+                <span
+                  key={t}
+                  className="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px]
+                             border-zinc-300 text-zinc-700
+                             dark:border-zinc-700 dark:text-zinc-300"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </Link>

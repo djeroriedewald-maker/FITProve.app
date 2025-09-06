@@ -1,5 +1,6 @@
 // src/modules/WorkoutModule.tsx
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 /** Types uit de Workout Library manifest/chunks */
 type WorkoutManifest = {
@@ -64,8 +65,16 @@ function Chip({ children }: { children: React.ReactNode }) {
 export default function WorkoutModule() {
   const [exercises, setExercises] = useState<NormalizedExercise[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [q, setQ] = useState("");
-  const [equip, setEquip] = useState<string>("all");
+
+  // URL query state
+  const [params, setParams] = useSearchParams();
+  const initialQ = params.get("q") ?? "";
+  const initialEquip = params.get("equipment") ?? "all";
+  const initialHasVideo = params.get("hasVideo") === "1";
+
+  const [q, setQ] = useState(initialQ);
+  const [equip, setEquip] = useState<string>(initialEquip);
+  const [hasVideo, setHasVideo] = useState<boolean>(initialHasVideo);
 
   useEffect(() => {
     let mounted = true;
@@ -80,7 +89,7 @@ export default function WorkoutModule() {
         // 1) Manifest
         const manifest = await getJSON<WorkoutManifest>(`${BASE}/manifest.json`);
 
-        // 2) Alle chunks ophalen (3 bij v20250905)
+        // 2) Alle chunks ophalen
         const chunkUrls = Array.from({ length: manifest.chunks }, (_, i) =>
           `${BASE}/chunk-${String(i).padStart(3, "0")}.json`
         );
@@ -107,6 +116,15 @@ export default function WorkoutModule() {
     };
   }, []);
 
+  /** Houd URL-query up-to-date (q, equipment, hasVideo) */
+  useEffect(() => {
+    const next = new URLSearchParams(params);
+    q ? next.set("q", q) : next.delete("q");
+    equip && equip !== "all" ? next.set("equipment", equip) : next.delete("equipment");
+    hasVideo ? next.set("hasVideo", "1") : next.delete("hasVideo");
+    setParams(next, { replace: true });
+  }, [q, equip, hasVideo, params, setParams]);
+
   /** Unieke equipmentlijst voor filterdropdown */
   const equipmentOptions = useMemo(() => {
     const set = new Set<string>();
@@ -114,13 +132,14 @@ export default function WorkoutModule() {
     return ["all", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
   }, [exercises]);
 
-  /** Client-side filters: zoekterm + equipment */
+  /** Client-side filters: zoekterm + equipment + hasVideo */
   const filtered = useMemo(() => {
     const list = exercises ?? [];
     const qnorm = q.trim().toLowerCase();
     return list.filter((x) => {
       const okEquip =
         equip === "all" ? true : x.equipment.some((e) => e === equip);
+
       const okQ =
         qnorm.length === 0
           ? true
@@ -130,22 +149,27 @@ export default function WorkoutModule() {
             (x.secondaryMuscles ?? []).some((m) =>
               m.toLowerCase().includes(qnorm)
             );
-      return okEquip && okQ;
+
+      const okVideo = hasVideo ? (x.media?.videos?.length ?? 0) > 0 : true;
+
+      return okEquip && okQ && okVideo;
     });
-  }, [exercises, q, equip]);
+  }, [exercises, q, equip, hasVideo]);
 
   return (
     <div className="px-4 py-4" id="start">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h2 className="text-lg font-semibold">Workouts</h2>
-        <div className="flex gap-2 w-full sm:w-auto">
+        <h2 className="text-lg font-semibold">Oefeningen</h2>
+
+        <div className="flex gap-2 w-full sm:w-auto flex-wrap">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Zoek workouts..."
+            placeholder="Zoek oefeningen..."
             className="flex-1 sm:w-64 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-transparent px-3 py-1.5 text-sm"
             aria-label="Zoeken"
           />
+
           <select
             value={equip}
             onChange={(e) => setEquip(e.target.value)}
@@ -158,6 +182,21 @@ export default function WorkoutModule() {
               </option>
             ))}
           </select>
+
+          {/* Checkbox: Alleen met video */}
+          <label
+            className="inline-flex items-center gap-2 text-sm px-2 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 cursor-pointer select-none"
+            title="Toon alleen oefeningen met video"
+          >
+            <input
+              type="checkbox"
+              className="accent-orange-500"
+              checked={hasVideo}
+              onChange={(e) => setHasVideo(e.target.checked)}
+              aria-label="Alleen met video"
+            />
+            Alleen met video
+          </label>
         </div>
       </div>
 
@@ -180,9 +219,7 @@ export default function WorkoutModule() {
 
         {/* Error */}
         {exercises !== null && error && (
-          <li className="text-sm text-red-600 dark:text-red-400">
-            {error}
-          </li>
+          <li className="text-sm text-red-600 dark:text-red-400">{error}</li>
         )}
 
         {/* Results */}
@@ -201,9 +238,7 @@ export default function WorkoutModule() {
                     loading="lazy"
                     className="h-14 w-14 rounded-lg object-cover border border-zinc-200 dark:border-zinc-800"
                     onError={(e) => {
-                      // simpel fallbackje als een external image breekt
-                      (e.currentTarget as HTMLImageElement).style.display =
-                        "none";
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
                     }}
                   />
                 ) : null}
@@ -213,6 +248,7 @@ export default function WorkoutModule() {
                   <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
                     {ex.primaryMuscles.join(", ")}
                     {ex.category ? ` • ${ex.category}` : ""}
+                    {(ex.media?.videos?.length ?? 0) > 0 ? " • 🎥 video" : ""}
                   </p>
 
                   <div className="mt-2 flex flex-wrap gap-1.5">
@@ -229,7 +265,6 @@ export default function WorkoutModule() {
                   type="button"
                   className="text-sm px-3 py-1.5 rounded-lg border border-orange-500/30 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10"
                   onClick={() => {
-                    // Placeholder actie; jouw echte "Start" flow kan hier worden ingehaakt
                     alert(`Start: ${ex.name}`);
                   }}
                 >
@@ -242,7 +277,7 @@ export default function WorkoutModule() {
         {/* Geen resultaten */}
         {exercises?.length === 0 && !error && (
           <li className="text-sm text-zinc-600 dark:text-zinc-400">
-            Geen workouts gevonden.
+            Geen oefeningen gevonden.
           </li>
         )}
 

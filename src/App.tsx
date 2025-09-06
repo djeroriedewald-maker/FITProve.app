@@ -16,20 +16,23 @@ const Profile = lazy(() => import("./routes/Profile"));
 const LoginPage = lazy(() => import("./routes/LoginPage"));
 const Dashboard = lazy(() => import("./routes/Dashboard"));
 
-// Modules (lazy) – GENESTE ROUTES
+// Modules (lazy) – geneste routes
 const ModulesLayout = lazy(() => import("./routes/modules/ModulesLayout"));
-// ✅ Belangrijk: de index hoort onder ./routes/modules/
-const ModulesIndex = lazy(() => import("./routes/modules/ModulesIndex"));
+const ModulesIndex = lazy(() => import("./routes/modules/ModulesIndex")); // index van /modules
 const ModuleDetail = lazy(() => import("./routes/modules/ModuleDetail")); // dynamisch :slug
 
-// ✅ Workouts module (lazy)
+// Workouts module (lazy)
 const WorkoutsIndex = lazy(() => import("./routes/modules/workouts/index"));
-const WorkoutDetail = lazy(() => import("./routes/modules/workouts/[id]"));
-// ✔ execute hoort bij een specifieke workout-id
+const WorkoutsLibrary = lazy(() => import("./routes/modules/workouts/library"));
+const WorkoutDetailExercise = lazy(() => import("./routes/modules/workouts/[id]")); // OEFENING-detail
 const ExecuteWorkout = lazy(() => import("./routes/modules/workouts/execute"));
 const BadgesPage = lazy(() => import("./routes/modules/workouts/badges"));
 const WorkoutsHelp = lazy(() => import("./routes/modules/workouts/help"));
 const WorkoutLogs = lazy(() => import("./routes/modules/workouts/logs"));
+
+// ✅ Programs (volledige workout-programma's uit Supabase)
+const ProgramsIndex = lazy(() => import("./routes/modules/programs/index"));
+const ProgramDetail = lazy(() => import("./routes/modules/programs/[id]"));
 
 export default function App() {
   return (
@@ -64,7 +67,7 @@ export default function App() {
               }
             />
 
-            {/* ✅ MODULES: geneste routes met index + expliciete workouts + fallback :slug */}
+            {/* MODULES: geneste routes achter ProtectedRoute */}
             <Route
               path="/modules"
               element={
@@ -73,23 +76,27 @@ export default function App() {
                 </ProtectedRoute>
               }
             >
-              {/* Overzicht met tegels – dit is wat /modules rendert */}
+              {/* /modules (tegels) */}
               <Route index element={<ModulesIndex />} />
 
-              {/* Expliciete workouts-routes */}
+              {/* Workouts (module home met tabs + subroutes) */}
               <Route path="workouts" element={<WorkoutsIndex />} />
-              <Route path="workouts/:id" element={<WorkoutDetail />} />
-              {/* execute hoort onder een :id; zo voorkom je losse /modules/workouts/execute */}
-              <Route path="workouts/:id/execute" element={<ExecuteWorkout />} />
+              <Route path="workouts/library" element={<WorkoutsLibrary />} />
               <Route path="workouts/badges" element={<BadgesPage />} />
               <Route path="workouts/help" element={<WorkoutsHelp />} />
               <Route path="workouts/logs" element={<WorkoutLogs />} />
+              <Route path="workouts/:id/execute" element={<ExecuteWorkout />} />
+              <Route path="workouts/:id" element={<WorkoutDetailExercise />} /> {/* oefening-detail */}
+
+              {/* ✅ Programs: lijst & programma-detail */}
+              <Route path="programs" element={<ProgramsIndex />} />
+              <Route path="programs/:id" element={<ProgramDetail />} />
 
               {/* Fallback voor andere modules (detailpagina op :slug) */}
               <Route path=":slug" element={<ModuleDetail />} />
             </Route>
 
-            {/* Fallback */}
+            {/* Catch-all */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

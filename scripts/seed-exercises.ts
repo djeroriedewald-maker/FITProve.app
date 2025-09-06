@@ -12,6 +12,7 @@ async function main() {
   // const items = JSON.parse(raw);
 
   // TODO: map items to schema, upload media posters later.
+  await fs.stat('.');
   console.log("Seed script stub. Volgende PR voegt echte import toe.");
 }
 

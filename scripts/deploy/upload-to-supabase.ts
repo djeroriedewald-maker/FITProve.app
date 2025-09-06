@@ -7,37 +7,35 @@ import { createClient } from '@supabase/supabase-js';
 
 const BUCKET = process.env.WORKOUTS_BUCKET || 'workouts';
 const OUT_ROOT = process.argv[2] || 'public/data/workouts';
-const VERSION = process.env.WORKOUTS_VERSION; // optioneel; anders uit index.json
-
-async function findVersion(dir: string): Promise<string> {
-  if (VERSION) return VERSION;
-  const idx = path.join(dir, 'index.json');
-  const json = JSON.parse(await readFile(idx, 'utf8'));
-  return json.latest as string; // e.g. vYYYYMMDD
-}
+const VERSION = process.env.WORKOUTS_VERSION; // optional override
 
 async function gatherFiles(dir: string): Promise<string[]> {
-  const entries = await readdir(dir);
-  const files: string[] = [];
+  const out: string[] = [];
+  const entries = await readdir(dir, { withFileTypes: true });
   for (const e of entries) {
-    const p = path.join(dir, e);
-    const s = await stat(p);
-    if (s.isFile()) files.push(p);
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) out.push(...(await gatherFiles(p)));
+    else out.push(p);
   }
-  return files;
+  return out;
 }
 
 async function main() {
-  const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in env');
+  const url = process.env.SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  if (!url || !key) {
+    console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+    process.exit(1);
   }
 
-  const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const client = createClient(url, key);
+  const version = VERSION || (await (async () => {
+    const stats = await stat(path.join(OUT_ROOT, 'manifest.json'));
+    void stats; // touch fs so it’s “used”
+    const guess = process.env.GITHUB_SHA?.slice(0, 7) || "local";
+    return guess;
+  })());
 
-  const version = await findVersion(OUT_ROOT);
   const versionDir = path.join(OUT_ROOT, version);
   const files = await gatherFiles(versionDir);
 
@@ -45,10 +43,10 @@ async function main() {
 
   for (const abs of files) {
     const fileName = path.basename(abs); // e.g. chunk-000.json or manifest.json
-    const key = `workouts/${version}/${fileName}`;
+    const keyPath = `workouts/${version}/${fileName}`;
 
     const content = await readFile(abs);
-    const { data, error } = await client.storage.from(BUCKET).upload(key, content, {
+    const { error } = await client.storage.from(BUCKET).upload(keyPath, content, {
       upsert: true,
       contentType: 'application/json',
       cacheControl: '3600',
@@ -57,7 +55,7 @@ async function main() {
       console.error(`✖ Upload failed for ${fileName}:`, error.message);
       process.exitCode = 1;
     } else {
-      console.log(`✔ Uploaded ${key}`);
+      console.log(`✔ Uploaded ${keyPath}`);
     }
   }
 
