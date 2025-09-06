@@ -17,11 +17,12 @@ export type Equipment =
   | 'cardio'
   | 'other';
 
+// Let op: equipment kan string of string[] zijn in verschillende datasets.
 export interface Exercise {
-  id: string;            // canonical slug id (lowercase-kebab)
+  id: string;            // canonical id (mag numeriek of string zijn; wij gebruiken als string)
   name: string;
   category?: string;
-  equipment?: string[];  // raw equipment tags
+  equipment?: string | string[];  // <-- string OF array toegestaan
   primaryMuscles?: string[];
   secondaryMuscles?: string[];
   language?: string;
@@ -77,8 +78,7 @@ export const EQUIPMENT_PROFILES: Equipment[][] = [
 ];
 
 export const FORBIDDEN_TERMS = [
-  // Keep content brand-safe (incl. user preference: avoid specific event names)
-  /hyrox/i,
+  /hyrox/i, // brand-voorkeur: niet gebruiken in content
 ];
 
 export const MIN_PATTERN_COVERAGE = 3 as const;
@@ -115,20 +115,27 @@ export const VOLUME_CAPS: Record<Level, Record<Workout['durationMin'], number>> 
 // Conflict rules (simple): avoid repeating same heavy pattern back-to-back in strength
 export const HEAVY_PATTERNS: Pattern[] = ['squat', 'hinge'];
 
-// --- Helpers to normalize equipment/patterns from exercises ---
+// --- Helpers ---
+
+export function toArray<T>(x: T | T[] | null | undefined): T[] {
+  if (Array.isArray(x)) return x;
+  if (x === null || x === undefined) return [];
+  return [x];
+}
 
 export function normalizeEquipmentTag(tag?: string): Equipment {
-  const t = (tag || '').toLowerCase();
-  if (/(bodyweight|no equipment|none)/.test(t)) return 'bodyweight';
+  const t = (tag || '').toLowerCase().trim();
+  if (!t) return 'other';
+  if (/(bodyweight|no equipment|none|own body weight|body weight)/.test(t)) return 'bodyweight';
   if (/dumbbell|db/.test(t)) return 'dumbbell';
   if (/barbell|bb|trap bar/.test(t)) return 'barbell';
   if (/kettlebell|kb/.test(t)) return 'kettlebell';
   if (/machine|leg press|smith/.test(t)) return 'machine';
-  if (/cable/.test(t)) return 'cable';
+  if (/cable|pulley/.test(t)) return 'cable';
   if (/band|resistance band/.test(t)) return 'band';
   if (/medicine ball|med ball|slam ball/.test(t)) return 'medicine_ball';
   if (/sled|prowler/.test(t)) return 'sled';
-  if (/run|row|bike|erg|treadmill|skierg/.test(t)) return 'cardio';
+  if (/(run|row|bike|erg|treadmill|skierg|elliptical)/.test(t)) return 'cardio';
   return 'other';
 }
 
@@ -159,7 +166,6 @@ export function derivePatterns(ex: Exercise): Pattern[] {
   const set = new Set<Pattern>();
   derivePatternsFromMuscles([...(ex.primaryMuscles || []), ...(ex.secondaryMuscles || [])]).forEach((p) => set.add(p));
   derivePatternsFromName(ex.name || '').forEach((p) => set.add(p));
-  // Heuristics for gait/carry
   if ((ex.name || '').toLowerCase().includes('carry')) set.add('gait');
   return Array.from(set);
 }

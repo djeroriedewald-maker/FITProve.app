@@ -22,6 +22,7 @@ import {
   TEMPOS,
   derivePatterns,
   normalizeEquipmentTag,
+  toArray,
 } from './config';
 import { signatureTokens, jaccardSim, djb2 } from './signature';
 import { validateWorkout, ExerciseMap } from './validator';
@@ -35,7 +36,7 @@ const getArg = (k: string, fallback?: string) => {
 
 const VERSION = (getArg('version') || new Date().toISOString().slice(0, 10).replace(/-/g, '')).replace(/^v?/, '');
 const TARGET = parseInt(getArg('target') || '1500', 10);
-const CHUNK_SIZE = parseInt(getArg('chunk', ) || '400', 10);
+const CHUNK_SIZE = parseInt(getArg('chunk') || '400', 10);
 const SEED = getArg('seed') || 'fitprove';
 
 // --- Seeded RNG (mulberry32) ---
@@ -53,18 +54,16 @@ const rng = mulberry32(djb2(SEED));
 function loadExercises(): Exercise[] {
   const localPath = path.resolve('scripts/build/assets/exercises.json'); // fallback
   const envUrl = process.env.EXERCISEDB_JSON_URL || '';
-  // We prefer local file to avoid network in build.
   if (fs.existsSync(localPath)) {
     const raw = JSON.parse(fs.readFileSync(localPath, 'utf-8'));
-    // support {exercises:[...]} or [...]
     return Array.isArray(raw) ? raw : (raw.exercises || []);
   }
   if (!envUrl) {
     console.warn('No exercises file found and EXERCISEDB_JSON_URL not set. Please add scripts/build/assets/exercises.json');
     return [];
   }
-  // Simple remote fetch using node >=18
-  return []; // avoid network fetch in most envs; rely on local file/pipeline
+  // Avoid remote fetch in most envs
+  return [];
 }
 
 // Build indexes: by equipment & pattern
@@ -88,12 +87,15 @@ function indexExercises(exs: Exercise[]) {
   };
 
   for (const ex of exs) {
-    const equipmentNorm: Equipment[] = (ex.equipment || []).map(normalizeEquipmentTag);
-    if (equipmentNorm.length === 0) equipmentNorm.push('bodyweight');
+    // Normalize equipment whether string or array
+    const eqRaw = toArray(ex.equipment).map((s) => String(s));
+    const equipmentNorm: Equipment[] = eqRaw.length ? eqRaw.map(normalizeEquipmentTag) : ['bodyweight'];
+
     const patterns = derivePatterns(ex);
     const ix: IndexedExercise = { ...ex, equipmentNorm, patterns };
 
-    idx.byId.set(ex.id, ex);
+    if (!ex.id) continue; // skip invalid rows
+    idx.byId.set(String(ex.id), ex);
     patterns.forEach((p) => idx.byPattern[p].push(ix));
     equipmentNorm.forEach((e) => idx.byEquip[e].push(ix));
   }
@@ -105,7 +107,7 @@ function pickN<T>(arr: T[], n: number): T[] {
   const out: T[] = [];
   const used = new Set<number>();
   let attempts = 0;
-  while (out.length < n && attempts < arr.length * 3) {
+  while (out.length < n && arr.length > 0 && attempts < arr.length * 4) {
     const i = Math.floor(rng() * arr.length);
     if (!used.has(i)) {
       used.add(i);
@@ -125,11 +127,11 @@ function makeStrengthItem(ex: Exercise, level: Level, goal: Goal): WorkoutItem {
   const [restMin, restMax] = REST_BANDS[goal][level];
   const rest = Math.round(restMin + rng() * (restMax - restMin));
   const rpe = Math.round((rpeMin + rng() * (rpeMax - rpeMin)) * 10) / 10;
-  return { exerciseId: ex.id, sets, reps, tempo, restSec: rest, rpe };
+  return { exerciseId: String(ex.id), sets, reps, tempo, restSec: rest, rpe };
 }
 
 function makeTimedItem(ex: Exercise, secs: number): WorkoutItem {
-  return { exerciseId: ex.id, timeSec: secs };
+  return { exerciseId: String(ex.id), timeSec: secs };
 }
 
 // --- Template families (functions that produce blocks) ---
@@ -152,16 +154,15 @@ type IndexedPools = {
 function poolsFromIndex(idx: ReturnType<typeof indexExercises>, profile: Equipment[]): IndexedPools {
   const any: IndexedExercise[] = [];
   Object.values(idx.byEquip).forEach((arr) => any.push(...arr));
-  // Filter by allowed equipment profile
   const filt = (arr: IndexedExercise[]) => arr.filter((x) => x.equipmentNorm.some((e) => profile.includes(e)));
   const byPattern: any = {};
   (['squat', 'hinge', 'push', 'pull', 'core', 'gait'] as Pattern[]).forEach((p) => (byPattern[p] = filt(idx.byPattern[p])));
   const byEquip: any = {};
-  Object.keys(idx.byEquip).forEach((k) => (byEquip[k as Equipment] = filt(idx.byEquip[k as Equipment])));
+  (Object.keys(idx.byEquip) as Equipment[]).forEach((k) => (byEquip[k] = filt(idx.byEquip[k])));
   return { byPattern, byEquip, any: filt(any) };
 }
 
-// FB Strength+Metcon
+// Families
 const familyFullBody: FamilyBuilder = (pool, v) => {
   const squat = pickN(pool.byPattern.squat, 1)[0];
   const hinge = pickN(pool.byPattern.hinge, 1)[0];
@@ -193,21 +194,16 @@ const familyFullBody: FamilyBuilder = (pool, v) => {
     style: 'AMRAP',
     timeSec: metconTime,
     items: [
-      { exerciseId: push.id, reps: 10 },
-      { exerciseId: pull.id, reps: 12 },
-      { exerciseId: core.id, reps: 14 },
+      { exerciseId: String(push.id), reps: 10 },
+      { exerciseId: String(pull.id), reps: 12 },
+      { exerciseId: String(core.id), reps: 14 },
     ],
   };
 
-  const cooldown: WorkoutBlock = {
-    type: 'cooldown',
-    items: [makeTimedItem(core, 60)],
-  };
-
+  const cooldown: WorkoutBlock = { type: 'cooldown', items: [makeTimedItem(core, 60)] };
   return [warmup, strength, metcon, cooldown];
 };
 
-// Upper/Lower split day
 const familyUpperLower: FamilyBuilder = (pool, v) => {
   const lower1 = pickN(pool.byPattern.squat.concat(pool.byPattern.hinge), 2);
   const upper = pickN(pool.byPattern.push.concat(pool.byPattern.pull), 2);
@@ -229,7 +225,7 @@ const familyUpperLower: FamilyBuilder = (pool, v) => {
     type: 'finisher',
     style: 'EMOM',
     timeSec: v.duration >= 45 ? 10 * 60 : 6 * 60,
-    items: [{ exerciseId: core.id, reps: 12 }],
+    items: [{ exerciseId: String(core.id), reps: 12 }],
   };
 
   return [
@@ -240,7 +236,6 @@ const familyUpperLower: FamilyBuilder = (pool, v) => {
   ];
 };
 
-// PPL style (condensed)
 const familyPPL: FamilyBuilder = (pool, v) => {
   const push = pickN(pool.byPattern.push, 2);
   const pull = pickN(pool.byPattern.pull, 2);
@@ -259,14 +254,13 @@ const familyPPL: FamilyBuilder = (pool, v) => {
       type: 'metcon',
       style: 'Intervals',
       timeSec: v.duration >= 45 ? 12 * 60 : 8 * 60,
-      items: [{ exerciseId: core.id, timeSec: 40 }, { exerciseId: pull[1]?.id || pull[0].id, timeSec: 40 }],
+      items: [{ exerciseId: String(core.id), timeSec: 40 }, { exerciseId: String(pull[1]?.id || pull[0].id), timeSec: 40 }],
     },
     { type: 'cooldown', items: [makeTimedItem(core, 60)] },
   ];
   return blocks;
 };
 
-// Bodyweight AMRAP (home/outdoor)
 const familyBodyweight: FamilyBuilder = (pool, v) => {
   const bwPush = pool.byPattern.push.filter((x) => x.equipmentNorm.includes('bodyweight'));
   const bwSquat = pool.byPattern.squat.filter((x) => x.equipmentNorm.includes('bodyweight'));
@@ -287,10 +281,10 @@ const familyBodyweight: FamilyBuilder = (pool, v) => {
     style: 'AMRAP',
     timeSec: time,
     items: [
-      { exerciseId: squat.id, reps: 15 },
-      { exerciseId: push.id, reps: 12 },
-      { exerciseId: coreEx.id, reps: 16 },
-      ...(carry ? [{ exerciseId: carry.id, timeSec: 45 } as WorkoutItem] : []),
+      { exerciseId: String(squat.id), reps: 15 },
+      { exerciseId: String(push.id), reps: 12 },
+      { exerciseId: String(coreEx.id), reps: 16 },
+      ...(carry ? [{ exerciseId: String(carry.id), timeSec: 45 } as WorkoutItem] : []),
     ],
   };
 
@@ -301,9 +295,8 @@ const familyBodyweight: FamilyBuilder = (pool, v) => {
   ];
 };
 
-// Kettlebell Mixed (swings/press/squat)
 const familyKettlebell: FamilyBuilder = (pool, v) => {
-  const kb = (e: IndexedExercise) => e.equipmentNorm.includes('kettlebell');
+  const kb = (e: any) => e.equipmentNorm.includes('kettlebell');
   const swings = pool.byPattern.hinge.filter(kb);
   const press = pool.byPattern.push.filter(kb);
   const squat = pool.byPattern.squat.filter(kb);
@@ -313,14 +306,13 @@ const familyKettlebell: FamilyBuilder = (pool, v) => {
 
   const warmup: WorkoutBlock = { type: 'warmup', style: 'Circuit', timeSec: 4 * 60, items: [makeTimedItem(squat[0], 30), makeTimedItem(core[0], 30)] };
   const strength: WorkoutBlock = { type: 'strength', style: 'Strength', items: [makeStrengthItem(press[0], v.level, v.goal), makeStrengthItem(squat[0], v.level, v.goal)] };
-  const emom: WorkoutBlock = { type: 'metcon', style: 'EMOM', timeSec: v.duration >= 45 ? 12 * 60 : 8 * 60, items: [{ exerciseId: swings[0].id, reps: 15 }, { exerciseId: core[0].id, reps: 12 }] };
+  const emom: WorkoutBlock = { type: 'metcon', style: 'EMOM', timeSec: v.duration >= 45 ? 12 * 60 : 8 * 60, items: [{ exerciseId: String(swings[0].id), reps: 15 }, { exerciseId: String(core[0].id), reps: 12 }] };
   const cooldown: WorkoutBlock = { type: 'cooldown', items: [makeTimedItem(core[0], 60)] };
   return [warmup, strength, emom, cooldown];
 };
 
-// Machine Circuit (gym)
 const familyMachineCircuit: FamilyBuilder = (pool, v) => {
-  const mach = (e: IndexedExercise) => e.equipmentNorm.includes('machine') || e.equipmentNorm.includes('cable');
+  const mach = (e: any) => e.equipmentNorm.includes('machine') || e.equipmentNorm.includes('cable');
   const push = pool.byPattern.push.filter(mach);
   const pull = pool.byPattern.pull.filter(mach);
   const squat = pool.byPattern.squat.filter(mach);
@@ -333,10 +325,10 @@ const familyMachineCircuit: FamilyBuilder = (pool, v) => {
     style: 'Circuit',
     timeSec: v.duration >= 45 ? 18 * 60 : 12 * 60,
     items: [
-      { exerciseId: squat[0].id, reps: 12 },
-      { exerciseId: push[0].id, reps: 12 },
-      { exerciseId: pull[0].id, reps: 12 },
-      { exerciseId: core[0].id, reps: 15 },
+      { exerciseId: String(squat[0].id), reps: 12 },
+      { exerciseId: String(push[0].id), reps: 12 },
+      { exerciseId: String(pull[0].id), reps: 12 },
+      { exerciseId: String(core[0].id), reps: 15 },
     ],
   };
   return [
@@ -346,7 +338,7 @@ const familyMachineCircuit: FamilyBuilder = (pool, v) => {
   ];
 };
 
-const FAMILIES: Array<{ name: string; builder: FamilyBuilder; allow: (equip: Equipment[]) => boolean; goals?: Goal[] }> = [
+const FAMILIES: Array<{ name: string; builder: any; allow: (equip: Equipment[]) => boolean; goals?: Goal[] }> = [
   { name: 'Full Body — Strength + Metcon', builder: familyFullBody, allow: () => true },
   { name: 'Upper/Lower Mix', builder: familyUpperLower, allow: () => true },
   { name: 'Push/Pull/Legs Mix', builder: familyPPL, allow: () => true },
@@ -355,7 +347,6 @@ const FAMILIES: Array<{ name: string; builder: FamilyBuilder; allow: (equip: Equ
   { name: 'Machine Circuit', builder: familyMachineCircuit, allow: (e) => e.includes('machine') || e.includes('cable') },
 ];
 
-// Build workout object
 function makeWorkoutTitle(base: string, dur: Workout['durationMin'], equip: Equipment[], level: Level) {
   const equipLabel =
     equip.length === 1 ? (
@@ -392,7 +383,6 @@ function main() {
     for (const goal of GOALS) {
       for (const duration of DURATIONS) {
         for (const equipProfile of EQUIPMENT_PROFILES) {
-          // Build pools filtered by equipment profile
           const pools = poolsFromIndex(idx, equipProfile);
 
           for (const fam of FAMILIES) {
@@ -402,7 +392,6 @@ function main() {
             if (!blocks) continue;
 
             const baseTitle = fam.name;
-            const title = makeWorkoutTitle(baseTitle, duration, equipProfile, level);
             const slugBase = `${baseTitle}-${duration}-${equipProfile.join('_')}-${level}-${goal}`;
             const slug = toSlug(slugBase);
             const id = `wkt_${slug}_${djb2(slug + VERSION).toString(16)}`;
@@ -410,7 +399,7 @@ function main() {
             const w: Workout = {
               id,
               slug,
-              title,
+              title: makeWorkoutTitle(baseTitle, duration, equipProfile, level),
               goal,
               level,
               durationMin: duration,
@@ -424,18 +413,13 @@ function main() {
               progression: { microcycleWeek: ((djb2(id) % 4) + 1) as 1 | 2 | 3 | 4, type: ['load', 'density', 'variation'][djb2(id) % 3] as any },
             };
 
-            // Validate
             const res = validateWorkout(w, idx.byId);
             if (!res.ok) continue;
 
-            // Dedupe
             const tokens = signatureTokens(w);
             let dup = false;
             for (const t of sigs) {
-              if (jaccardSim(t, tokens) >= 0.85) {
-                dup = true;
-                break;
-              }
+              if (jaccardSim(t, tokens) >= 0.85) { dup = true; break; }
             }
             if (dup) continue;
 
@@ -448,7 +432,7 @@ function main() {
     }
   }
 
-  // If still below target (unlikely), add randomized variations of families
+  // Top-up met random variaties indien nodig
   let guard = 0;
   while (out.length < TARGET && guard < TARGET * 5) {
     guard++;
@@ -464,12 +448,13 @@ function main() {
     if (!blocks) continue;
 
     const baseTitle = fam.name;
-    const title = makeWorkoutTitle(baseTitle, duration, equipProfile, level);
     const slugBase = `${baseTitle}-${duration}-${equipProfile.join('_')}-${level}-${goal}-${Math.floor(rng()*1e6)}`;
     const slug = toSlug(slugBase);
     const id = `wkt_${slug}_${djb2(slug + VERSION).toString(16)}`;
     const w: Workout = {
-      id, slug, title, goal, level, durationMin: duration,
+      id, slug,
+      title: makeWorkoutTitle(baseTitle, duration, equipProfile, level),
+      goal, level, durationMin: duration,
       location: equipProfile.includes('bodyweight') ? 'home' : 'gym',
       equipment: equipProfile, blocks,
       notes: 'Houd techniek strak; stop 1–2 reps in de tank.',
