@@ -1,10 +1,10 @@
 // src/routes/modules/workouts/library.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import WorkoutCard from "@/components/workouts/WorkoutCard";
 import { listWorkouts } from "@/lib/workouts-client";
-import type { Workout } from "@/types/workouts";
+import type { Workout as WorkoutT } from "@/types/workout";
 
-type Filters = {
+type WF = {
   q?: string;
   goal?: string;
   level?: string;
@@ -13,154 +13,154 @@ type Filters = {
   duration?: "15" | "30" | "45" | "60" | "90" | "any";
 };
 
-const goals = [
-  { v: "", l: "Alle doelen" },
-  { v: "strength", l: "Kracht" },
-  { v: "hypertrophy", l: "Spieropbouw" },
-  { v: "fat_loss", l: "Vetverlies" },
-  { v: "conditioning", l: "Conditioning" },
-  { v: "mobility", l: "Mobiliteit" },
-  { v: "endurance", l: "Uithouding" },
-  { v: "event", l: "Event" },
-];
-
-const levels = [
-  { v: "", l: "Alle niveaus" },
-  { v: "beginner", l: "Beginner" },
-  { v: "intermediate", l: "Gevorderd" },
-  { v: "advanced", l: "Advanced" },
-];
-
-const equipments = [
-  { v: "any", l: "Alle materialen" },
-  { v: "with", l: "Met materiaal" },
-  { v: "without", l: "Zonder materiaal" },
-];
-
-const durations = [
-  { v: "any", l: "Alle tijden" },
-  { v: "15", l: "15 min" },
-  { v: "30", l: "30 min" },
-  { v: "45", l: "45 min" },
-  { v: "60", l: "60 min" },
-  { v: "90", l: "90 min" },
-];
-
-export default function WorkoutsLibrary() {
-  const [filters, setFilters] = useState<Filters>({ equipment: "any", duration: "any" });
-  const [items, setItems] = useState<Workout[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [err, setErr] = useState<string | undefined>();
+export default function WorkoutLibraryPage() {
+  const [wf, setWf] = useState<WF>({ equipment: "any", duration: "any" });
+  const [workouts, setWorkouts] = useState<WorkoutT[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let on = true;
     setLoading(true);
-    setErr(undefined);
-
+    setErr(null);
     listWorkouts({
-      q: filters.q,
-      goal: filters.goal || undefined,
-      level: filters.level || undefined,
-      location: filters.location || undefined,
-      equipment: filters.equipment !== "any" ? filters.equipment : undefined,
-      duration: filters.duration !== "any" ? (filters.duration as any) : undefined,
+      q: wf.q,
+      goal: wf.goal || undefined,
+      level: wf.level || undefined,
+      location: wf.location || undefined,
+      equipment: wf.equipment && wf.equipment !== "any" ? wf.equipment : undefined,
+      duration: wf.duration && wf.duration !== "any" ? (wf.duration as any) : undefined,
     })
-      .then((data) => on && setItems(data || []))
-      .catch((e) => on && setErr(e.message))
+      .then((data) => {
+        if (!on) return;
+        setWorkouts(data || []);
+      })
+      .catch((e) => {
+        if (!on) return;
+        setErr(e?.message ?? "Kon workouts niet laden.");
+      })
       .finally(() => on && setLoading(false));
+    return () => {
+      on = false;
+    };
+  }, [wf]);
 
-    return () => { on = false; };
-  }, [filters]);
+  const baseField =
+    "h-10 text-sm rounded-lg border px-3 outline-none transition " +
+    "bg-white text-zinc-900 border-zinc-300 " +
+    "dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-700 " +
+    "placeholder:text-zinc-500 dark:placeholder:text-zinc-400 " +
+    "focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30";
+  const selectField = baseField + " pr-8";
+
+  const hasFilters = useMemo(
+    () =>
+      Boolean(wf.q) ||
+      Boolean(wf.goal) ||
+      Boolean(wf.level) ||
+      (wf.equipment && wf.equipment !== "any") ||
+      (wf.duration && wf.duration !== "any"),
+    [wf]
+  );
 
   return (
-    <div className="px-4 py-5 max-w-3xl mx-auto">
-      <header className="mb-3">
-        <h1 className="text-xl font-semibold">Workout Library</h1>
-      </header>
+    <div className="px-4 py-4 max-w-3xl mx-auto">
+      <h1 className="text-2xl font-bold mb-3">Workout Library</h1>
 
       {/* Filters */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="flex gap-2 flex-wrap">
         <input
-          className="rounded-xl px-3 py-2 bg-zinc-100 dark:bg-zinc-800 outline-none flex-1 min-w-[160px]"
-          placeholder="Zoek workout…"
-          value={filters.q ?? ""}
-          onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
+          value={wf.q ?? ""}
+          onChange={(e) => setWf((f) => ({ ...f, q: e.target.value }))}
+          placeholder="Zoek workout..."
+          className={baseField + " flex-1 sm:w-64"}
+          aria-label="Zoek workout"
         />
-
         <select
-          className="rounded-xl px-3 py-2 bg-zinc-100 dark:bg-zinc-800"
-          value={filters.goal ?? ""}
-          onChange={(e) => setFilters((f) => ({ ...f, goal: e.target.value || undefined }))}
+          value={wf.goal ?? ""}
+          onChange={(e) => setWf((f) => ({ ...f, goal: e.target.value || undefined }))}
+          className={selectField}
+          aria-label="Filter op doel"
         >
-          {goals.map((g) => (
-            <option key={g.v} value={g.v}>{g.l}</option>
-          ))}
+          <option value="">Alle doelen</option>
+          <option value="strength">Kracht</option>
+          <option value="hypertrophy">Spieropbouw</option>
+          <option value="fat_loss">Vetverlies</option>
+          <option value="conditioning">Conditioning</option>
+          <option value="mobility">Mobiliteit</option>
+          <option value="endurance">Uithouding</option>
+          <option value="event">Event</option>
         </select>
-
         <select
-          className="rounded-xl px-3 py-2 bg-zinc-100 dark:bg-zinc-800"
-          value={filters.level ?? ""}
-          onChange={(e) => setFilters((f) => ({ ...f, level: e.target.value || undefined }))}
+          value={wf.level ?? ""}
+          onChange={(e) => setWf((f) => ({ ...f, level: e.target.value || undefined }))}
+          className={selectField}
+          aria-label="Filter op niveau"
         >
-          {levels.map((l) => (
-            <option key={l.v} value={l.v}>{l.l}</option>
-          ))}
+          <option value="">Alle niveaus</option>
+          <option value="beginner">Beginner</option>
+          <option value="intermediate">Gevorderd</option>
+          <option value="advanced">Advanced</option>
         </select>
-
         <select
-          className="rounded-xl px-3 py-2 bg-zinc-100 dark:bg-zinc-800"
-          value={filters.equipment ?? "any"}
-          onChange={(e) => setFilters((f) => ({ ...f, equipment: e.target.value as any }))}
+          value={wf.equipment ?? "any"}
+          onChange={(e) => setWf((f) => ({ ...f, equipment: e.target.value as WF["equipment"] }))}
+          className={selectField}
+          aria-label="Materiaal"
         >
-          {equipments.map((e) => (
-            <option key={e.v} value={e.v}>{e.l}</option>
-          ))}
+          <option value="any">Alle materialen</option>
+          <option value="with">Met materiaal</option>
+          <option value="without">Zonder materiaal</option>
         </select>
-
         <select
-          className="rounded-xl px-3 py-2 bg-zinc-100 dark:bg-zinc-800"
-          value={filters.duration ?? "any"}
-          onChange={(e) => setFilters((f) => ({ ...f, duration: e.target.value as any }))}
+          value={wf.duration ?? "any"}
+          onChange={(e) => setWf((f) => ({ ...f, duration: e.target.value as WF["duration"] }))}
+          className={selectField}
+          aria-label="Duur"
         >
-          {durations.map((d) => (
-            <option key={d.v} value={d.v}>{d.l}</option>
-          ))}
+          <option value="any">Alle tijden</option>
+          <option value="15">15 min</option>
+          <option value="30">30 min</option>
+          <option value="45">45 min</option>
+          <option value="60">60 min</option>
+          <option value="90">90 min</option>
         </select>
-
         <button
-          className="rounded-xl px-3 py-2 bg-zinc-100 dark:bg-zinc-800"
-          onClick={() => setFilters({ equipment: "any", duration: "any" })}
+          className={baseField + " px-3 h-10"}
+          onClick={() => setWf({ equipment: "any", duration: "any" })}
+          disabled={!hasFilters}
+          title="Reset filters"
         >
           Reset
         </button>
       </div>
 
-      {err && <div className="mb-3 text-red-500 text-sm">Error: {String(err)}</div>}
+      {/* Data */}
+      {err && <div className="mt-3 text-sm text-red-600 dark:text-red-400">Error: {err}</div>}
 
       {loading ? (
-        <div className="grid gap-3">
+        <div className="mt-4 grid gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-24 rounded-2xl bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
           ))}
         </div>
-      ) : items.length ? (
-        <div className="grid gap-3">
-          {items.map((w) => (
+      ) : workouts.length ? (
+        <div className="mt-4 grid gap-3">
+          {workouts.map((w) => (
             <WorkoutCard
               key={w.id}
               id={w.id}
               title={w.title}
-              duration={w.duration_minutes}
-              level={w.level}
+              duration={w.duration_minutes ?? undefined}  // null → undefined
+              level={w.level ?? undefined}               // null → undefined
               tags={[]}
               thumbnail={undefined}
-              // ✅ Programma-detail: /modules/programs/:id
               to={`/modules/programs/${w.id}`}
             />
           ))}
         </div>
       ) : (
-        <div className="text-sm text-zinc-500 dark:text-zinc-400">
+        <div className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
           Geen workouts gevonden. Pas je filters aan of voeg workouts toe in Supabase (Table Editor → <code>workouts</code>).
         </div>
       )}
