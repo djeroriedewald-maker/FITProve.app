@@ -123,8 +123,7 @@ export default function WorkoutModule() {
     equip && equip !== "all" ? next.set("equipment", equip) : next.delete("equipment");
     hasVideo ? next.set("hasVideo", "1") : next.delete("hasVideo");
     setParams(next, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, equip, hasVideo]);
+  }, [q, equip, hasVideo, params, setParams]);
 
   /** Unieke equipmentlijst voor filterdropdown */
   const equipmentOptions = useMemo(() => {
