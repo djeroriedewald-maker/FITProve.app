@@ -94,12 +94,7 @@ export default function WorkoutsIndex() {
     return () => { mounted = false; };
   }, []);
 
-  /** ===== KPI's voor Home: gevraagd set =====
-   * - Oefeningen in library (van BASE dataset)
-   * - Workouts in library (Supabase table `workouts`)
-   * - Workouts gedaan (user) (Supabase table `workout_sessions` met status=completed)
-   * - Badges verdiend (user) (Supabase table `user_badges`)
-   */
+  /** ===== KPI's voor Home ===== */
   const [kpi, setKpi] = useState({
     exercisesInLibrary: 0,
     workoutsInLibrary: 0,
@@ -108,20 +103,17 @@ export default function WorkoutsIndex() {
     loading: true,
   });
 
-  // update exercises KPI zodra items geladen zijn
   useEffect(() => {
     setKpi((s) => ({ ...s, exercisesInLibrary: (items ?? []).length }));
   }, [items]);
 
-  // laad overige KPI's (Supabase); veilig met fallbacks als tabellen ontbreken
   useEffect(() => {
     let on = true;
     (async () => {
       try {
-        // Auth check (RLS): alleen eigen rijen zichtbaar
         await supabase.auth.getUser();
 
-        // Workouts in library (count)
+        // Workouts in library
         let workoutsInLibrary = 0;
         try {
           const { count: wCount } = await supabase
@@ -129,12 +121,11 @@ export default function WorkoutsIndex() {
             .select("id", { count: "exact", head: true });
           workoutsInLibrary = wCount ?? 0;
         } catch {
-          // fallback: snelle fetch via listWorkouts
-          const list = await listWorkouts({}); // kan leeg zijn
+          const list = await listWorkouts({});
           workoutsInLibrary = (list ?? []).length;
         }
 
-        // Workouts gedaan (completed sessions)
+        // Workouts gedaan
         let workoutsDone = 0;
         try {
           const { count } = await supabase
@@ -142,9 +133,7 @@ export default function WorkoutsIndex() {
             .select("id", { count: "exact" })
             .eq("status", "completed");
           workoutsDone = count ?? 0;
-        } catch {
-          workoutsDone = 0;
-        }
+        } catch {}
 
         // Badges verdiend
         let badgesEarned = 0;
@@ -153,18 +142,10 @@ export default function WorkoutsIndex() {
             .from("user_badges")
             .select("id", { count: "exact" });
           badgesEarned = count ?? 0;
-        } catch {
-          badgesEarned = 0;
-        }
+        } catch {}
 
         if (!on) return;
-        setKpi((s) => ({
-          ...s,
-          workoutsInLibrary,
-          workoutsDone,
-          badgesEarned,
-          loading: false,
-        }));
+        setKpi((s) => ({ ...s, workoutsInLibrary, workoutsDone, badgesEarned, loading: false }));
       } catch {
         if (!on) return;
         setKpi((s) => ({ ...s, loading: false }));
@@ -173,7 +154,7 @@ export default function WorkoutsIndex() {
     return () => { on = false; };
   }, []);
 
-  /** Exercise Library afgeleide stats & filters (blijven bestaan voor die tab) */
+  /** Afgeleide stats + filters voor Exercise Library */
   const statsExtra = useMemo(() => {
     const list = items ?? [];
     const withVideo = list.filter((x) => (x.media?.videos?.length ?? 0) > 0).length;
@@ -184,9 +165,8 @@ export default function WorkoutsIndex() {
     return { withVideo, equipments: equipSet.size, muscles: musclesSet.size };
   }, [items]);
 
-  /** Exercise Library filters */
   const [q, setQ] = useState("");
-  const [level, setLevel] = useState<string>("all"); // (nog niet actief in dataset)
+  const [level, setLevel] = useState<string>("all");
   const [equipment, setEquipment] = useState<string>("all");
   const [hasVideo, setHasVideo] = useState<boolean>(false);
   const [regio, setRegio] = useState<Regio>("all");
@@ -248,7 +228,6 @@ export default function WorkoutsIndex() {
   const [woLoading, setWoLoading] = useState<boolean>(false);
   const [woErr, setWoErr] = useState<string | undefined>();
 
-  // Laad alleen wanneer tab == "workout-library" of filters veranderen in die tab
   useEffect(() => {
     if (tab !== "workout-library") return;
     let on = true;
@@ -270,7 +249,7 @@ export default function WorkoutsIndex() {
     return () => { on = false; };
   }, [tab, wf]);
 
-  /** My Workouts (compacte geschiedenis in deze file; volledige pagina op /modules/workouts/logs) */
+  /** My Workouts (compacte geschiedenis) */
   type Session = { id: string; workout_id: string; workout_title?: string | null; status: string; started_at: string; completed_at?: string | null };
   const [recent, setRecent] = useState<Session[] | null>(null);
   useEffect(() => {
@@ -349,7 +328,7 @@ export default function WorkoutsIndex() {
       {/* ===== HOME (Landing) ===== */}
       {tab === "home" && (
         <section className="space-y-6">
-          {/* KPI's — gevraagd set */}
+          {/* KPI's */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Kpi title="Oefeningen" value={kpi.exercisesInLibrary} hint="in library" loading={kpi.loading && (items === null)} />
             <Kpi title="Workouts" value={kpi.workoutsInLibrary} hint="in library" loading={kpi.loading} />
@@ -357,14 +336,14 @@ export default function WorkoutsIndex() {
             <Kpi title="Badges" value={kpi.badgesEarned} hint="verdiend" loading={kpi.loading} />
           </div>
 
-          {/* Extra informatieve mini-statistiek (alleen visueel; geen KPI) */}
+          {/* Extra mini-statistieken */}
           <div className="grid grid-cols-3 gap-3">
             <MiniStat label="Met video" value={statsExtra.withVideo} />
             <MiniStat label="Materiaaltypes" value={statsExtra.equipments} />
             <MiniStat label="Spiergroepen" value={statsExtra.muscles} />
           </div>
 
-          {/* Uitleg/CTA's */}
+          {/* CTA's */}
           <div className="grid gap-3">
             <GuideCard
               title="Exercise Library"
@@ -570,8 +549,8 @@ export default function WorkoutsIndex() {
                   key={w.id}
                   id={w.id}
                   title={w.title}
-                  duration={w.duration_minutes}
-                  level={w.level}
+                  duration={w.duration_minutes ?? undefined}  // ✅ null-safe
+                  level={w.level ?? undefined}                 // ✅ null-safe
                   tags={[]}
                   thumbnail={undefined}
                   /** 🔑 BELANGRIJK: ga naar Program-detail i.p.v. Exercise-detail */
