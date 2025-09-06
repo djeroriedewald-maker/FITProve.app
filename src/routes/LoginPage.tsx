@@ -1,61 +1,87 @@
+// src/routes/LoginPage.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { useAuth } from "../context/AuthProvider";
+import { supabase } from "@/lib/supabaseClient";
 
 const LoginPage: React.FC = () => {
-  const { user, loading, signInWithEmail, signUpWithEmail, signInWithOAuth } = useAuth() as any;
+  const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const navigate = useNavigate();
   const location = useLocation() as any;
-  const from = location.state?.from?.pathname || "/";
 
-  // Achtergrond via env met nette fallback naar lokale asset
-  const bg =
-    (import.meta.env.VITE_LOGIN_BG as string) ||
-    "https://fitprove.app/images/modules/loginpage.webp";
-  const base = import.meta.env.BASE_URL || "/"; // "/" in dev, mogelijk "/app/" in prod
+  // redirect: query-param ?redirect=...  -> fallback naar location.state?.from -> anders /modules
+  const params = new URLSearchParams(location.search);
+  const redirect = params.get("redirect") || location.state?.from?.pathname || "/modules";
+
+  // Achtergrond uit env of lokale fallback
+  const bg = (import.meta.env.VITE_LOGIN_BG as string) || "https://fitprove.app/images/modules/loginpage.webp";
+  const base = import.meta.env.BASE_URL || "/";
   const localFallback = `${base}images/loginpage.webp`;
 
-  // Ingelogd? Ga direct naar Home
+  // Als al ingelogd → door
   useEffect(() => {
-    if (!loading && user) {
-      navigate("/", { replace: true });
-    }
-  }, [user, loading, navigate]);
+    let on = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (on && data.user) navigate(redirect, { replace: true });
+    });
+    return () => {
+      on = false;
+    };
+  }, [navigate, redirect]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const hasV2Password = typeof (supabase.auth as any).signInWithPassword === "function";
+  const hasV2OAuth = typeof (supabase.auth as any).signInWithOAuth === "function";
+
+  async function submitEmailPassword(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
       if (mode === "login") {
-        await signInWithEmail(email, password);
+        if (hasV2Password) {
+          const { error } = await supabase.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+        } else {
+          const { error } = await (supabase.auth as any).signIn({ email, password });
+          if (error) throw error;
+        }
+        navigate(redirect, { replace: true });
       } else {
-        await signUpWithEmail(email, password);
+        // signup
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        // Je kunt hier eventueel een bevestigde melding tonen.
+        navigate(redirect, { replace: true });
       }
-      navigate(from, { replace: true });
     } catch (err: any) {
-      setError(err.message ?? "Er ging iets mis. Probeer opnieuw.");
+      setError(err?.message ?? "Inloggen mislukt.");
     } finally {
       setBusy(false);
     }
-  };
+  }
 
-  const oauth = async (p: "google" | "apple") => {
-    setError(null);
+  async function oauth(provider: "google" | "apple") {
     setBusy(true);
+    setError(null);
+    const redirectTo = `${window.location.origin}/`;
     try {
-      await signInWithOAuth(p); // redirect handled by provider
+      if (hasV2OAuth) {
+        const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase.auth as any).signIn({ provider }, { redirectTo });
+        if (error) throw error;
+      }
+      // Redirect volgt via provider
     } catch (err: any) {
-      setError(err.message ?? "OAuth fout. Probeer opnieuw.");
+      setError(err?.message ?? "OAuth inloggen mislukt.");
       setBusy(false);
     }
-  };
+  }
 
   return (
     <div className="relative min-h-screen text-white">
@@ -65,36 +91,27 @@ const LoginPage: React.FC = () => {
         alt="Coach Tai login achtergrond"
         className="absolute inset-0 w-full h-full object-cover"
         onError={(e) => {
-          // fallback naar lokale asset; als dat ook faalt, verberg de img
           const img = e.currentTarget as HTMLImageElement;
-          if (img.src !== localFallback) {
-            img.src = localFallback;
-          } else {
-            img.style.display = "none";
-          }
+          if (img.src !== localFallback) img.src = localFallback;
+          else img.style.display = "none";
         }}
       />
       <div className="absolute inset-0 bg-black/70" />
 
-      {/* Card */}
       <div className="relative z-10 flex min-h-screen items-center justify-center p-4">
         <div className="w-full max-w-md rounded-2xl border border-white/10 bg-black/60 backdrop-blur p-6">
-          {/* Coach Tai kop */}
+          {/* Kop */}
           <div className="mb-6 text-center">
             <div className="mx-auto mb-4 w-12 h-12 rounded-2xl bg-orange-500" />
             <h1 className="text-2xl font-bold">Coach Tai</h1>
-            <p className="text-white/70 mt-1">
-              “Even inchecken en we gaan knallen. Ik hou je voortgang bij.”
-            </p>
+            <p className="text-white/70 mt-1">“Even inchecken en we gaan knallen. Ik hou je voortgang bij.”</p>
           </div>
 
-          {/* Tabs Login/Signup */}
+          {/* Tabs */}
           <div className="grid grid-cols-2 gap-2 mb-4">
             <button
               type="button"
-              className={`py-2 rounded-xl font-semibold ${
-                mode === "login" ? "bg-white text-black" : "bg-white/10 text-white hover:bg-white/20"
-              }`}
+              className={`py-2 rounded-xl font-semibold ${mode === "login" ? "bg-white text-black" : "bg-white/10 text-white hover:bg-white/20"}`}
               onClick={() => setMode("login")}
               aria-pressed={mode === "login"}
             >
@@ -102,9 +119,7 @@ const LoginPage: React.FC = () => {
             </button>
             <button
               type="button"
-              className={`py-2 rounded-xl font-semibold ${
-                mode === "signup" ? "bg-white text-black" : "bg-white/10 text-white hover:bg-white/20"
-              }`}
+              className={`py-2 rounded-xl font-semibold ${mode === "signup" ? "bg-white text-black" : "bg-white/10 text-white hover:bg-white/20"}`}
               onClick={() => setMode("signup")}
               aria-pressed={mode === "signup"}
             >
@@ -113,7 +128,7 @@ const LoginPage: React.FC = () => {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <form onSubmit={submitEmailPassword} className="space-y-3">
             <label className="block">
               <span className="text-sm text-white/80">E-mail</span>
               <input
@@ -166,18 +181,10 @@ const LoginPage: React.FC = () => {
 
           {/* OAuth */}
           <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => oauth("google")}
-              className="py-2 rounded-xl bg-white text-black font-semibold hover:bg-white/90"
-              disabled={busy}
-            >
+            <button onClick={() => oauth("google")} className="py-2 rounded-xl bg-white text-black font-semibold hover:bg-white/90" disabled={busy}>
               Google
             </button>
-            <button
-              onClick={() => oauth("apple")}
-              className="py-2 rounded-xl bg-white text-black font-semibold hover:bg-white/90"
-              disabled={busy}
-            >
+            <button onClick={() => oauth("apple")} className="py-2 rounded-xl bg-white text-black font-semibold hover:bg-white/90" disabled={busy}>
               Apple
             </button>
           </div>

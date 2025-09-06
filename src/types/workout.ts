@@ -1,92 +1,72 @@
-// src/types/workout.ts
-export type LicenseInfo = {
-  name: string;
-  url?: string;
-  attribution?: string;
-};
+export type WorkoutGoal = 'strength'|'hypertrophy'|'fat_loss'|'conditioning'|'mobility'|'endurance'|'event';
+export type WorkoutLevel = 'beginner'|'intermediate'|'advanced';
+export type WorkoutLocation = 'gym'|'outdoor'|'home';
+export type LoadType = 'bodyweight'|'dumbbell'|'barbell'|'kettlebell'|'machine'|'band'|'cable'|'other';
 
-export type ExerciseSource =
-  | { vendor: 'wger'; id: string; url?: string; license: LicenseInfo }
-  | { vendor: 'exerciseDB'; id: string; url?: string; license: LicenseInfo };
-
-export type ExerciseMedia = {
-  images?: string[];
-  gifs?: string[];
-  videos?: string[];
-  thumbnail?: string;
-};
-
-export type NormalizedExercise = {
+export interface Workout {
   id: string;
   slug: string;
-  name: string;
-  aliases?: string[];
-  description?: string;
-  instructions?: string[];
-  primaryMuscles: string[];
-  secondaryMuscles?: string[];
-  equipment: string[];
-  category?: string;
-  level?: string;
-  language?: string;
-  media: ExerciseMedia;
-  sources: ExerciseSource[];
-};
-
-export type WorkoutManifest = {
-  version: string;
-  createdAt: string;
-  total: number;
-  chunkSize: number;
-  chunks: number;
-  basePath: string;
-  attribution: {
-    wger?: LicenseInfo & { count: number };
-    exerciseDB?: LicenseInfo & { count: number };
-  };
-};
-
-export type ExerciseFilter = {
-  q?: string;
-  muscles?: string[];
-  equipment?: string[];
-  category?: string;
-};
-
-export const DEFAULT_CHUNK_SIZE = 500;
-
-export function slugify(input: string): string {
-  return input
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)+/g, '');
+  title: string;
+  description?: string | null;
+  goal: WorkoutGoal;
+  level: WorkoutLevel;
+  location: WorkoutLocation;
+  equipment_required: boolean;
+  duration_minutes: number;
+  estimated_difficulty: number; // 1..5
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+  tags?: string[];
 }
 
-export function shortHash(input: string): string {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < input.length; i++) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0).toString(36);
+export interface WorkoutBlock {
+  id: string;
+  workout_id: string;
+  title?: string | null;
+  note?: string | null;
+  sequence: number;
+  type: string;
 }
 
-export function ensureArray<T>(v: T | T[] | undefined): T[] {
-  if (!v) return [];
-  return Array.isArray(v) ? v : [v];
+export interface WorkoutExercise {
+  id: string;
+  block_id: string;
+  exercise_ref: string; // "exdb:push_up"
+  display_name: string;
+  sequence: number;
+  target_sets: number;
+  target_reps?: number | null;
+  target_time_seconds?: number | null;
+  target_load?: LoadType | null;
+  tempo?: string | null;
+  rest_seconds?: number | null;
 }
 
-export function hasAnyMedia(m: ExerciseMedia | undefined): boolean {
-  if (!m) return false;
-  return Boolean((m.images && m.images.length) || (m.gifs && m.gifs.length));
+export interface UserWorkoutSession {
+  id: string;
+  user_id: string;
+  workout_id: string;
+  started_at: string;
+  ended_at?: string | null;
+  notes?: string | null;
+  device_summary?: Record<string, unknown> | null;
+  calories?: number | null;
+  avg_hr?: number | null;
+  max_hr?: number | null;
+  distance_m?: number | null;
+  is_completed: boolean;
+  created_at: string;
 }
 
-export function normalizeName(s: string): string {
-  return s.trim().replace(/\s+/g, ' ').replace(/[’'`]/g, "'").toLowerCase();
-}
-
-export function normalizeLabel(s: string): string {
-  return s.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ');
+export interface UserWorkoutSet {
+  id: string;
+  session_id: string;
+  workout_exercise_id: string;
+  set_index: number;
+  reps?: number | null;
+  weight_kg?: number | null;
+  time_seconds?: number | null;
+  rpe?: number | null;
+  completed_at?: string | null;
 }
