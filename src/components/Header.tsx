@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthProvider";
 import ProfileMenu from "./ProfileMenu"; // bevat Profiel/Dashboard/Uitloggen
+import ThemeToggle from "./ui/ThemeToggle";
 
 const Header: React.FC = () => {
   const { user } = useAuth() as any;
@@ -14,26 +15,29 @@ const Header: React.FC = () => {
           <span className="text-white font-semibold">FITProve</span>
         </Link>
 
-        {!user ? (
-          <nav className="flex items-center gap-3">
-            <Link
-              to="/login"
-              className="px-4 py-2 rounded-xl bg-orange-500 text-black font-semibold hover:bg-orange-400 transition"
-            >
-              Log in
-            </Link>
-          </nav>
-        ) : (
-          <nav className="flex items-center gap-2">
-            <Link
-              to="/dashboard"
-              className="px-3 py-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 transition"
-            >
-              Dashboard
-            </Link>
-            <ProfileMenu />
-          </nav>
-        )}
+        <div className="flex items-center gap-2">
+          {!user ? (
+            <nav className="flex items-center gap-3">
+              <Link
+                to="/login"
+                className="px-4 py-2 rounded-xl bg-orange-500 text-black font-semibold hover:bg-orange-400 transition"
+              >
+                Log in
+              </Link>
+            </nav>
+          ) : (
+            <nav className="flex items-center gap-2">
+              <Link
+                to="/dashboard"
+                className="px-3 py-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 transition"
+              >
+                Dashboard
+              </Link>
+              <ProfileMenu />
+            </nav>
+          )}
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   );
