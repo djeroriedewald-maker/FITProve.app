@@ -10,11 +10,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <Header />
 
       {/* Main content */}
-      <main className="mx-auto w-full max-w-3xl px-4 pt-4 pb-24">{children}</main>
+      <main className="mx-auto w-full max-w-3xl px-4 pt-4 pb-safe">{children}</main>
 
       {/* Bottom navigation (component handles fixed positioning) */}
       <BottomNav />
     </div>
   );
 }
-

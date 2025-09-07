@@ -35,3 +35,11 @@ img, svg, video, canvas {
     @apply bg-white dark:bg-slate-900;
   }
 }
+
+/* ---------- Utilities ---------- */
+@layer utilities {
+  /* Safe bottom padding: 6rem (pb-24) + iOS safe area */
+  .pb-safe {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 6rem);
+  }
+}

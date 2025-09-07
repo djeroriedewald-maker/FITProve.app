@@ -35,9 +35,9 @@ export default function BottomNav() {
     <nav
       role="navigation"
       aria-label="Bottom navigation"
-      className="fixed bottom-0 inset-x-0 bg-[rgb(var(--bg))]/95 backdrop-blur supports-[backdrop-filter]:bg-[rgb(var(--bg))]/80"
+      className="fixed bottom-0 inset-x-0 z-50 border-t border-zinc-200/60 dark:border-zinc-800/60 bg-white/80 dark:bg-slate-950/70 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-950/60"
     >
-      <div className="mx-auto flex max-w-screen-sm">
+      <div className="mx-auto flex w-full max-w-3xl">
         <Item to="/"        label="Home"    icon={<Home className="h-5 w-5" />} />
         <Item to="/coach"   label="Coach"   icon={<Dumbbell className="h-5 w-5" />} />
         <Item to="/stats"   label="Stats"   icon={<Activity className="h-5 w-5" />} />
