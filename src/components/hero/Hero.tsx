@@ -9,18 +9,28 @@ import { Link } from "react-router-dom";
  * - Accessible headings & buttons
  */
 export default function Hero() {
-  const HERO_URL = "https://fitprove.app/images/modules/hero.webp";
+  const envHero = (import.meta.env.VITE_HERO_URL as string) || "";
+  const DEFAULT_REMOTE = "https://fitprove.app/images/modules/hero.webp";
+  const base = (import.meta.env.BASE_URL as string) || "/";
+  const LOCAL_FALLBACK = `${base}images/hero.webp`;
+  const PLACEHOLDER = `${base}images/hero.svg`;
 
   return (
     <section
       aria-label="Intro"
       className="relative w-full min-h-[68vh] md:min-h-[78vh] flex items-center justify-center text-center overflow-hidden"
     >
-      {/* Background image as CSS for better control over focal point */}
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{
-          backgroundImage: `url('${HERO_URL}')`,
+      {/* Background image element for robust fallback */}
+      <img
+        src={envHero || DEFAULT_REMOTE}
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 w-full h-full object-cover"
+        onError={(e) => {
+          const img = e.currentTarget as HTMLImageElement;
+          if (img.src.endsWith("hero.svg")) return; // stop loop
+          if (!img.src.includes("/images/hero.webp")) img.src = LOCAL_FALLBACK;
+          else img.src = PLACEHOLDER;
         }}
       />
 
