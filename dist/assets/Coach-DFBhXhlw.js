@@ -1,1 +1,0 @@
-import{j as s}from"./index-CWau8kv9.js";function c(){return s.jsxs("section",{className:"space-y-3",children:[s.jsx("h1",{className:"text-2xl font-semibold",children:"Coach"}),s.jsx("div",{className:"card p-4",children:s.jsx("p",{className:"text-subtle",children:"AI coach coming soon."})})]})}export{c as default};
