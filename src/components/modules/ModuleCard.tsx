@@ -13,13 +13,18 @@ export default function ModuleCard({
   description,
   image,
 }: ModuleCardProps) {
-  // Als alleen bestandsnaam is gegeven, render onder /images/modules/
-  const imgUrl =
-    image && (image.startsWith("/") || image.startsWith("http"))
-      ? image
-      : image
-      ? `/images/modules/${image}`
-      : undefined;
+  // Local-first in dev, remote-first in prod.
+  let imgUrl: string | undefined;
+  let fallback: string | undefined;
+  if (image) {
+    const isRemote = image.startsWith("http");
+    const name = image.split("/").pop() || image;
+    const local = `/images/modules/${name}`;
+    const remote = isRemote ? image : `https://fitprove.app/images/modules/${name}`;
+    const isDev = import.meta.env.DEV;
+    imgUrl = isDev ? local : remote;
+    fallback = isDev ? remote : local;
+  }
 
   return (
     <Link
@@ -33,6 +38,11 @@ export default function ModuleCard({
             alt={title}
             loading="lazy"
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            onError={(e) => {
+              const img = e.currentTarget as HTMLImageElement;
+              if (fallback && img.src !== fallback) img.src = fallback;
+              else img.src = "/images/hero.svg";
+            }}
           />
         </div>
       ) : null}
