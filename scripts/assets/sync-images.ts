@@ -10,7 +10,7 @@ import path from "node:path";
 import https from "node:https";
 
 const BASE = process.env.FP_IMAGES_BASE || "https://fitprove.app/images/modules/";
-const OUT_DIR = path.resolve(process.cwd(), "public/images/modules");
+const OUT_DIR = path.resolve(process.cwd(), "public/images");
 
 const files = [
   "hero.webp",
@@ -66,4 +66,3 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-

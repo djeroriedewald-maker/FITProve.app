@@ -19,7 +19,7 @@ export default function ModuleCard({
   if (image) {
     const isRemote = image.startsWith("http");
     const name = image.split("/").pop() || image;
-    const local = `/images/modules/${name}`;
+    const local = `/images/${name}`; // project stores images under /images
     const remote = isRemote ? image : `https://fitprove.app/images/modules/${name}`;
     const isDev = import.meta.env.DEV;
     imgUrl = isDev ? local : remote;

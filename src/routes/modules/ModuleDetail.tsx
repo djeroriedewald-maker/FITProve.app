@@ -78,7 +78,7 @@ export default function ModuleDetail() {
   const pick = (url?: string) => {
     if (!url) return { primary: undefined as string | undefined, fallback: undefined as string | undefined };
     const name = url.split("/").pop() || url;
-    const local = `/images/modules/${name}`;
+    const local = `/images/${name}`; // project stores images under /images
     const remote = url.startsWith("http") ? url : `https://fitprove.app/images/modules/${name}`;
     const isDev = import.meta.env.DEV;
     return { primary: isDev ? local : remote, fallback: isDev ? remote : local };

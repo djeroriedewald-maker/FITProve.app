@@ -12,7 +12,8 @@ export default function Hero() {
   const envHero = (import.meta.env.VITE_HERO_URL as string) || "";
   const DEFAULT_REMOTE = "https://fitprove.app/images/modules/hero.webp";
   const base = (import.meta.env.BASE_URL as string) || "/";
-  const LOCAL_FALLBACK = `${base}images/hero.webp`;
+  const LOCAL_PRIMARY = `${base}images/hero.webp`;
+  const REMOTE_FALLBACK = envHero || DEFAULT_REMOTE;
   const PLACEHOLDER = `${base}images/hero.svg`;
 
   return (
@@ -22,15 +23,17 @@ export default function Hero() {
     >
       {/* Background image element for robust fallback */}
       <img
-        src={envHero || DEFAULT_REMOTE}
+        src={LOCAL_PRIMARY}
         alt=""
         aria-hidden="true"
         className="absolute inset-0 w-full h-full object-cover"
         onError={(e) => {
           const img = e.currentTarget as HTMLImageElement;
-          if (img.src.endsWith("hero.svg")) return; // stop loop
-          if (!img.src.includes("/images/hero.webp")) img.src = LOCAL_FALLBACK;
-          else img.src = PLACEHOLDER;
+          if (img.src === REMOTE_FALLBACK || img.src.endsWith("hero.svg")) {
+            img.src = PLACEHOLDER;
+          } else {
+            img.src = REMOTE_FALLBACK;
+          }
         }}
       />
 
