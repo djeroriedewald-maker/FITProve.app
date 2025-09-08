@@ -175,8 +175,15 @@ export default function WorkoutLogger({
                   {(ex.rest_seconds ?? "") && `• Rust ${ex.rest_seconds}s`}
                 </div>
               </div>
-              <div className="text-xs text-zinc-500">
-                {ex.tempo ? `Tempo ${ex.tempo}` : ""}
+              <div className="flex items-center gap-2 text-xs text-zinc-500">
+                {ex.tempo ? <span>Tempo {ex.tempo}</span> : null}
+                <button
+                  type="button"
+                  onClick={() => void markAllCompleted(ex.id)}
+                  className="rounded-lg border px-2 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                >
+                  Alles voltooid
+                </button>
               </div>
             </div>
 

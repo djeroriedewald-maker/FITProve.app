@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { pickAsset } from "@/lib/assets";
 
 export type ModuleCardProps = {
   to: string;
@@ -17,13 +18,9 @@ export default function ModuleCard({
   let imgUrl: string | undefined;
   let fallback: string | undefined;
   if (image) {
-    const isRemote = image.startsWith("http");
-    const name = image.split("/").pop() || image;
-    const local = `/images/${name}`; // project stores images under /images
-    const remote = isRemote ? image : `https://fitprove.app/images/modules/${name}`;
-    const isDev = import.meta.env.DEV;
-    imgUrl = isDev ? local : remote;
-    fallback = isDev ? remote : local;
+    const { primary, fallback: fb } = pickAsset(image);
+    imgUrl = primary;
+    fallback = fb;
   }
 
   return (

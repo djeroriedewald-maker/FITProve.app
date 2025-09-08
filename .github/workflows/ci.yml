@@ -30,3 +30,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Dry-run generate workouts (small)
+        run: npx tsx scripts/build/build-workout-library.ts --target=50 --chunk=25
+
+      - name: Dry-run import mapping (no Supabase)
+        run: npx tsx scripts/deploy/import-workouts-to-db.ts public/data/workouts --dry-run

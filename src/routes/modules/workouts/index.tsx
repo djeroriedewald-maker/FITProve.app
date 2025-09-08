@@ -1,9 +1,11 @@
 // src/routes/modules/workouts/index.tsx
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { pickAsset } from "@/lib/assets";
 import WorkoutCard from "@/components/workouts/WorkoutCard";
 import { supabase } from "@/lib/supabaseClient";
 // ✅ runtime loaders voor manifest/chunks (zie: src/workout-sources.ts)
-import { streamExercises, streamWorkouts } from "@/workout-sources";
+import { streamExercises, streamWorkouts, getManifest } from "@/workout-sources";
 
 /** ---- Types ---- */
 type Media = { images?: string[]; gifs?: string[]; videos?: string[]; thumbnail?: string };
@@ -34,7 +36,7 @@ type GenWorkout = {
 };
 type Manifest = { total: number; chunks: number; version?: string; generatedAt?: string };
 
-const HERO_URL = "https://fitprove.app/images/modules/workout.webp";
+const { primary: HERO_PRIMARY, fallback: HERO_FALLBACK } = pickAsset("workout.webp");
 
 // Kleine fetch helper voor alleen-manifest KPI
 async function fetchJson<T>(url: string): Promise<T> {
@@ -73,6 +75,7 @@ function cx(...parts: Array<string | false | null | undefined>) {
 }
 
 export default function WorkoutsIndex() {
+  const navigate = useNavigate();
   type Tab = "home" | "exercise-library" | "workout-library" | "my" | "badges" | "help";
   const [tab, setTab] = useState<Tab>("home");
 
@@ -188,13 +191,13 @@ export default function WorkoutsIndex() {
     setKpi((s) => ({ ...s, exercisesInLibrary: (exItems ?? []).length }));
   }, [exItems]);
 
-  // Workouts (alleen manifest lezen voor teller)
+  // Workouts (manifest via alias/index.json)
   useEffect(() => {
     let on = true;
     (async () => {
       try {
-        const base = clean(import.meta.env.VITE_WORKOUTS_BASE as string);
-        const m = await fetchJson<Manifest>(manifestUrl(base));
+        const base = import.meta.env.VITE_WORKOUTS_BASE as string | undefined;
+        const { manifest: m } = await getManifest('workouts', base);
         if (!on) return;
         setKpi((s) => ({ ...s, workoutsInLibrary: m.total, loading: false }));
       } catch {
@@ -331,7 +334,19 @@ export default function WorkoutsIndex() {
       {/* Hero alleen op Home */}
       {tab === "home" && (
         <div className="mb-4 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800">
-          <img src={HERO_URL} alt="Workout" className="w-full h-40 sm:h-56 object-cover" loading="lazy" />
+          <img
+            src={HERO_PRIMARY}
+            alt="Workout"
+            className="w-full h-40 sm:h-56 object-cover"
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+            onError={(e) => {
+              const img = e.currentTarget as HTMLImageElement;
+              if (img.src === HERO_FALLBACK) return;
+              img.src = HERO_FALLBACK || "/images/hero.svg";
+            }}
+          />
         </div>
       )}
 
@@ -340,7 +355,7 @@ export default function WorkoutsIndex() {
       {/* Tabs */}
       <div className="mb-3 flex gap-2 flex-wrap">
         {(["home", "exercise-library", "workout-library", "my", "badges", "help"] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={chipBtn(tab === t)}>
+          <button key={t} onClick={() => (t === 'workout-library' ? navigate('/modules/workouts/library') : setTab(t))} className={chipBtn(tab === t)}>
             {t === "home"
               ? "Home"
               : t === "exercise-library"
@@ -374,7 +389,7 @@ export default function WorkoutsIndex() {
 
           <div className="grid gap-3">
             <GuideCard title="Exercise Library" text="Zoek losse oefeningen op naam, spiergroep, materiaal of alleen met video." onClick={() => setTab("exercise-library")} />
-            <GuideCard title="Workout Library" text="Complete workouts met filters op doel, niveau, materiaal en duur." onClick={() => setTab("workout-library")} />
+            <GuideCard title="Workout Library" text="Complete workouts met filters op doel, niveau, materiaal en duur." onClick={() => navigate('/modules/workouts/library')} />
             <GuideCard title="My Workouts" text="Bekijk je sessie-historie en voortgang." onClick={() => setTab("my")} />
           </div>
 

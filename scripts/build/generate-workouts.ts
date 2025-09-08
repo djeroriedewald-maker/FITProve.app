@@ -338,13 +338,140 @@ const familyMachineCircuit: FamilyBuilder = (pool, v) => {
   ];
 };
 
+// --- New families for richer styles ---
+const familyHIIT: FamilyBuilder = (pool, v) => {
+  // Intervals block: 40s work / 20s rest x N (timeSec total)
+  const pick = (arr: IndexedExercise[], n: number) => (arr.length ? pickN(arr, Math.min(n, arr.length)) : []);
+  const set = [
+    ...pick(pool.byPattern.squat.concat(pool.byPattern.hinge), 1),
+    ...pick(pool.byPattern.push, 1),
+    ...pick(pool.byPattern.pull, 1),
+    ...pick(pool.byPattern.core, 1),
+  ];
+  if (set.length < 3) return null;
+  const minutes = v.duration >= 45 ? 18 : v.duration >= 30 ? 14 : 10;
+  const time = minutes * 60;
+  const items: WorkoutItem[] = set.map((x) => ({ exerciseId: String(x.id), timeSec: 40, restSec: 20 }));
+  return [
+    { type: 'warmup', style: 'Circuit', timeSec: 4 * 60, items: [makeTimedItem(set[0], 30), makeTimedItem(set[1], 30)] },
+    { type: 'metcon', style: 'Intervals', timeSec: time, items },
+    { type: 'cooldown', items: [makeTimedItem(set[2] || set[0], 60)] },
+  ];
+};
+
+const familyTabata: FamilyBuilder = (pool, v) => {
+  const set = pickN(pool.byPattern.push.concat(pool.byPattern.pull).concat(pool.byPattern.squat).concat(pool.byPattern.core), 4);
+  if (set.length < 2) return null;
+  const items: WorkoutItem[] = set.map((x) => ({ exerciseId: String(x.id), timeSec: 20, restSec: 10 }));
+  return [
+    { type: 'warmup', style: 'Circuit', timeSec: 3 * 60, items: [makeTimedItem(set[0], 30), makeTimedItem(set[1], 30)] },
+    { type: 'metcon', style: 'Tabata', timeSec: 4 * 60, items },
+    { type: 'cooldown', items: [makeTimedItem(set[2] || set[0], 60)] },
+  ];
+};
+
+const familyEMOM: FamilyBuilder = (pool, v) => {
+  const push = pickN(pool.byPattern.push, 1)[0];
+  const pull = pickN(pool.byPattern.pull, 1)[0];
+  const squat = pickN(pool.byPattern.squat, 1)[0];
+  if (!push || !pull || !squat) return null;
+  const minutes = v.duration >= 45 ? 16 : v.duration >= 30 ? 12 : 10;
+  const time = minutes * 60;
+  const items: WorkoutItem[] = [
+    { exerciseId: String(push.id), reps: 10 },
+    { exerciseId: String(pull.id), reps: 10 },
+    { exerciseId: String(squat.id), reps: 12 },
+  ];
+  return [
+    { type: 'warmup', style: 'Circuit', timeSec: 4 * 60, items: [makeTimedItem(squat, 30), makeTimedItem(push, 30)] },
+    { type: 'metcon', style: 'EMOM', timeSec: time, items },
+    { type: 'cooldown', items: [makeTimedItem(pickN(pool.byPattern.core, 1)[0] || squat, 60)] },
+  ];
+};
+
+const familyStrengthOnly: FamilyBuilder = (pool, v) => {
+  const lower = pickN(pool.byPattern.squat.concat(pool.byPattern.hinge), 1)[0];
+  const upperPush = pickN(pool.byPattern.push, 1)[0];
+  const upperPull = pickN(pool.byPattern.pull, 1)[0];
+  if (!lower || !upperPush || !upperPull) return null;
+  const items: WorkoutItem[] = [
+    makeStrengthItem(lower, v.level, 'strength'),
+    makeStrengthItem(upperPush, v.level, 'strength'),
+    makeStrengthItem(upperPull, v.level, 'strength'),
+  ];
+  return [
+    { type: 'strength', style: 'Strength', items },
+  ];
+};
+
+const familyHypertrophy: FamilyBuilder = (pool, v) => {
+  const picks = pickN(pool.byPattern.push.concat(pool.byPattern.pull).concat(pool.byPattern.squat).concat(pool.byPattern.hinge), 4);
+  if (picks.length < 3) return null;
+  const items: WorkoutItem[] = picks.slice(0, 4).map((x) => ({
+    exerciseId: String(x.id),
+    sets: v.level === 'advanced' ? 4 : 3,
+    reps: '8-12',
+    restSec: v.level === 'advanced' ? 75 : 60,
+    tempo: '20X1',
+    rpe: 7,
+  }));
+  return [
+    { type: 'strength', style: 'Hypertrophy', items },
+  ];
+};
+
+const familySuperset: FamilyBuilder = (pool, v) => {
+  const a = pickN(pool.byPattern.push, 1)[0];
+  const b = pickN(pool.byPattern.pull, 1)[0];
+  if (!a || !b) return null;
+  const items: WorkoutItem[] = [
+    { exerciseId: String(a.id), sets: 4, reps: 10, restSec: 20 },
+    { exerciseId: String(b.id), sets: 4, reps: 10, restSec: 20 },
+  ];
+  return [
+    { type: 'strength', style: 'Superset', items },
+  ];
+};
+
+const familyMobility: FamilyBuilder = (pool, v) => {
+  const core = pool.byPattern.core.length ? pickN(pool.byPattern.core, 3) : [];
+  const squat = pickN(pool.byPattern.squat, 1);
+  const set = [...core, ...squat].slice(0, 3);
+  if (!set.length) return null;
+  const minutes = v.duration >= 45 ? 16 : v.duration >= 30 ? 12 : 8;
+  const time = minutes * 60;
+  return [
+    { type: 'mobility', style: 'Mobility', timeSec: time, items: set.map((x) => ({ exerciseId: String(x.id), timeSec: 45 })) },
+  ];
+};
+
+const familyCardio: FamilyBuilder = (pool, v) => {
+  const cardio = pool.byEquip.cardio || [];
+  const picks = cardio.length ? pickN(cardio, 2) : pickN(pool.byPattern.gait.concat(pool.byPattern.hinge), 2);
+  if (!picks.length) return null;
+  const minutes = v.duration >= 45 ? 25 : v.duration >= 30 ? 18 : 12;
+  const time = minutes * 60;
+  return [
+    { type: 'metcon', style: 'Cardio', timeSec: time, items: picks.map((x) => ({ exerciseId: String(x.id), timeSec: 60 })) },
+  ];
+};
+
 const FAMILIES: Array<{ name: string; builder: any; allow: (equip: Equipment[]) => boolean; goals?: Goal[] }> = [
-  { name: 'Full Body — Strength + Metcon', builder: familyFullBody, allow: () => true },
+  { name: 'Full Body – Strength + Metcon', builder: familyFullBody, allow: () => true },
   { name: 'Upper/Lower Mix', builder: familyUpperLower, allow: () => true },
   { name: 'Push/Pull/Legs Mix', builder: familyPPL, allow: () => true },
   { name: 'Bodyweight AMRAP', builder: familyBodyweight, allow: (e) => e.includes('bodyweight') },
   { name: 'Kettlebell Mixed', builder: familyKettlebell, allow: (e) => e.includes('kettlebell') },
   { name: 'Machine Circuit', builder: familyMachineCircuit, allow: (e) => e.includes('machine') || e.includes('cable') },
+  // New styles
+  { name: 'HIIT Intervals', builder: familyHIIT, allow: () => true },
+  { name: 'Tabata', builder: familyTabata, allow: () => true },
+  { name: 'EMOM', builder: familyEMOM, allow: () => true },
+  { name: 'Strength Only', builder: familyStrengthOnly, allow: () => true },
+  { name: 'Hypertrophy', builder: familyHypertrophy, allow: () => true },
+  { name: 'Superset', builder: familySuperset, allow: () => true },
+  { name: 'Mobility', builder: familyMobility, allow: (e) => e.includes('bodyweight') },
+  { name: 'Cardio', builder: familyCardio, allow: (e) => e.includes('cardio') || e.includes('other') },
 ];
 
 function makeWorkoutTitle(base: string, dur: Workout['durationMin'], equip: Equipment[], level: Level) {

@@ -19,7 +19,9 @@ type Exercise = {
 };
 type Manifest = { version: string; total: number; chunks: number; chunkSize: number; basePath: string };
 
-const BASE = (import.meta as any).env?.VITE_WORKOUTS_BASE as string | undefined;
+const EX_BASE =
+  ((import.meta as any).env?.VITE_EXERCISES_BASE as string | undefined) ||
+  ((import.meta as any).env?.VITE_WORKOUTS_BASE as string | undefined);
 
 async function getJSON<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { "cache-control": "no-cache" } });
@@ -36,10 +38,17 @@ export default function WorkoutDetail() {
     let mounted = true;
     async function loadOne() {
       try {
-        if (!BASE) throw new Error("VITE_WORKOUTS_BASE ontbreekt in .env");
-        const manifest = await getJSON<Manifest>(`${BASE}/manifest.json`);
+        if (!EX_BASE) throw new Error("VITE_EXERCISES_BASE ontbreekt in .env");
+        // Probeer alias index.json → versie → manifest, anders direct manifest
+        let chunkBase = EX_BASE;
+        try {
+          const idx = await getJSON<any>(`${EX_BASE.replace(/\/+$/g, "")}/index.json`);
+          const ver = (idx?.exercises_latest || idx?.latest) as string | undefined;
+          if (ver) chunkBase = `${EX_BASE.replace(/\/+$/g, "")}/${ver}`;
+        } catch {}
+        const manifest = await getJSON<Manifest>(`${chunkBase}/manifest.json`);
         for (let i = 0; i < manifest.chunks; i++) {
-          const chunk = await getJSON<Exercise[]>(`${BASE}/chunk-${String(i).padStart(3, "0")}.json`);
+          const chunk = await getJSON<Exercise[]>(`${chunkBase}/chunk-${String(i).padStart(3, "0")}.json`);
           const found = chunk.find((x) => x.id === id);
           if (found) {
             if (mounted) setExercise(found);

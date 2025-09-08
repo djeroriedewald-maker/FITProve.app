@@ -1,0 +1,1 @@
+import{j as e}from"./index-BZn6MCEi.js";function s(){return e.jsxs("div",{className:"px-4 py-4 max-w-3xl mx-auto",children:[e.jsx("h1",{className:"text-2xl font-bold",children:"Badges"}),e.jsx("p",{className:"opacity-80",children:"Volgende PR: badge grid + earned/locked + detail."})]})}export{s as default};

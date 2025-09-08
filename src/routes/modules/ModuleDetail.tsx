@@ -1,6 +1,7 @@
 // src/routes/modules/ModuleDetail.tsx
 import { useParams, Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
+import { pickAsset } from "@/lib/assets";
 import type { AppModule } from "../../types/module";
 
 // Nieuwe workouts-module (tabs + filter)
@@ -76,12 +77,13 @@ export default function ModuleDetail() {
 
   // Helper: choose local/remote primary with fallback
   const pick = (url?: string) => {
-    if (!url) return { primary: undefined as string | undefined, fallback: undefined as string | undefined };
-    const name = url.split("/").pop() || url;
-    const local = `/images/${name}`; // project stores images under /images
-    const remote = url.startsWith("http") ? url : `https://fitprove.app/images/modules/${name}`;
-    const isDev = import.meta.env.DEV;
-    return { primary: isDev ? local : remote, fallback: isDev ? remote : local };
+    if (!url)
+      return {
+        primary: undefined as string | undefined,
+        fallback: undefined as string | undefined,
+      };
+    const { primary, fallback } = pickAsset(url);
+    return { primary, fallback };
   };
 
   return (

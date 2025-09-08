@@ -1,6 +1,7 @@
 // src/routes/Home.tsx
 import React from "react";
 import { Link } from "react-router-dom";
+import { pickAsset } from "@/lib/assets";
 import SectionHeader from "../components/home/SectionHeader";
 import QuickActions from "../components/home/QuickActions";
 import ProgressStrip from "../components/home/ProgressStrip";
@@ -12,9 +13,10 @@ export default function Home() {
   const envHero = (import.meta.env.VITE_HERO_URL as string) || "";
   const DEFAULT_REMOTE = "https://fitprove.app/images/modules/hero.webp";
   const base = (import.meta.env.BASE_URL as string) || "/";
-  const LOCAL_PRIMARY = `${base}images/hero.webp`;
-  const REMOTE_FALLBACK = envHero || DEFAULT_REMOTE;
   const PLACEHOLDER = `${base}images/hero.svg`;
+  const { primary: HERO_PRIMARY, fallback: HERO_FALLBACK } = pickAsset(
+    envHero || "hero.webp"
+  );
 
   // KPI data (mock)
   const kpis = [
@@ -34,7 +36,7 @@ export default function Home() {
       {/* HERO IMAGE */}
       <figure className="mb-6">
         <img
-          src={LOCAL_PRIMARY}
+          src={HERO_PRIMARY}
           alt="FITProve hero"
           loading="eager"
           fetchPriority="high"
@@ -43,10 +45,10 @@ export default function Home() {
           sizes="100vw"
           onError={(e) => {
             const img = e.currentTarget as HTMLImageElement;
-            if (img.src === REMOTE_FALLBACK || img.src.endsWith("hero.svg")) {
+            if (img.src === HERO_FALLBACK || img.src.endsWith("hero.svg")) {
               img.src = PLACEHOLDER;
             } else {
-              img.src = REMOTE_FALLBACK;
+              img.src = HERO_FALLBACK || PLACEHOLDER;
             }
           }}
         />

@@ -1,5 +1,6 @@
 // src/routes/modules/programs/[id].tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import SignInDialog from "@/components/auth/SignInDialog";
 import { useParams, useLocation } from "react-router-dom";
 import WorkoutLogger from "@/components/workouts/WorkoutLogger";
 
@@ -48,6 +49,8 @@ export default function ProgramDetail() {
   const [session, setSession] = useState<UserWorkoutSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [signInOpen, setSignInOpen] = useState(false);
 
   // Load workout + optionally existing session
   useEffect(() => {
@@ -84,11 +87,22 @@ export default function ProgramDetail() {
     };
   }, [id, sidFromUrl]);
 
-  const exByBlock = useMemo(() => {
-    const map = new Map<string, WorkoutExercise[]>();
-    for (const ex of exercises) {
-      const key = ex.block_id;
-      if (!map.has(key)) map.set(key, []);
+  
+  // Load exercise dataset for media + instructions join
+  const [exMap, setExMap] = useState<Map<string, any>>(new Map());
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
+        const list = await loadAllExercises<any>();
+        if (!on) return;
+        const m = new Map<string, any>();
+        for (const ex of list) if (ex?.id) m.set(String(ex.id), ex);
+        setExMap(m);
+      } catch {}
+    })();
+    return () => { on = false; };
+  }, []);
       map.get(key)!.push(ex);
     }
     for (const list of map.values()) list.sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
@@ -98,8 +112,30 @@ export default function ProgramDetail() {
   async function onStart() {
     try {
       if (!id) return;
-      const s = await startSession(id);
-      setSession(s);
+      try {
+        const s = await startSession(id, undefined, workout?.title);
+        setSession(s);
+        setInfo(null);
+      } catch (e: any) {
+        // Fallback: lokale sessie zodat publiek kan loggen zonder account
+        const msg = String(e?.message || "");
+        if (/not authenticated/i.test(msg) || /auth/i.test(msg)) {
+          const local: UserWorkoutSession = {
+            id: `local_${Date.now()}`,
+            workout_id: id!,
+            user_id: "local",
+            status: "active",
+            started_at: new Date().toISOString(),
+            completed_at: null,
+            duration_sec: null,
+            workout_title: workout?.title ?? null,
+          };
+          setSession(local);
+          setInfo("Niet ingelogd: we slaan je sessie lokaal op. Log in om je voortgang te bewaren in je account.");
+        } else {
+          throw e;
+        }
+      }
       window.requestAnimationFrame(() => {
         try {
           window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
@@ -112,16 +148,112 @@ export default function ProgramDetail() {
     }
   }
 
-  function previewUrl(x: WorkoutExercise): string | undefined {
-    return firstDefined(
-      x.media?.videos?.[0],
-      x.media?.gifs?.[0],
-      x.media?.images?.[0],
-      x.video_url ?? undefined,
-      x.gif_url ?? undefined,
-      x.image_url ?? undefined,
-      x.thumbnail ?? undefined
+  function previewUrl(x: WorkoutExercise): string | undefined {\n    const fromX = firstDefined(\n      x.media?.videos?.[0],\n      x.media?.gifs?.[0],\n      x.media?.images?.[0],\n      x.video_url ?? undefined,\n      x.gif_url ?? undefined,\n      x.image_url ?? undefined,\n      x.thumbnail ?? undefined\n    );\n    if (fromX) return fromX;\n    const ref = (x as any).exercise_ref as string | undefined;\n    const ex = ref ? exMap.get(ref) : undefined;\n    if (!ex) return undefined;\n    return firstDefined(ex?.media?.videos?.[0], ex?.media?.gifs?.[0], ex?.media?.images?.[0], ex?.media?.thumbnail);\n  }
+
+  // --- Simple block timer from note ("Duur mm:ss") ---
+  function parseSecondsFromNote(note?: string | null): number | undefined {
+    if (!note) return undefined;
+    const m = /Duur\s+(\d{1,2}):(\d{2})/.exec(note);
+    if (!m) return undefined;
+    const mm = parseInt(m[1], 10);
+    const ss = parseInt(m[2], 10);
+    if (Number.isFinite(mm) && Number.isFinite(ss)) return mm * 60 + ss;
+    return undefined;
+  }
+  function useCountdown(initialSec: number | undefined) {
+    const [sec, setSec] = useState<number>(initialSec ?? 0);
+    const [running, setRunning] = useState(false);
+    const timer = useRef<number | null>(null);
+    useEffect(() => { setSec(initialSec ?? 0); setRunning(false); }, [initialSec]);
+    useEffect(() => {
+      if (!running) return;
+      timer.current = window.setInterval(() => setSec((s) => (s > 0 ? s - 1 : 0)), 1000) as any;
+      return () => { if (timer.current) window.clearInterval(timer.current); };
+    }, [running]);
+    const start = () => setRunning(true);
+    const pause = () => setRunning(false);
+    const reset = () => { setRunning(false); setSec(initialSec ?? 0); };
+    return { sec, running, start, pause, reset };
+  }
+  function TimerView({ seconds }: { seconds?: number }) {
+    if (!seconds || seconds <= 0) return null;
+    const { sec, running, start, pause, reset } = useCountdown(seconds);
+    const mm = String(Math.floor(sec / 60)).padStart(2, '0');
+    const ss = String(sec % 60).padStart(2, '0');
+    return (
+      <div className="flex items-center gap-2 text-xs">
+        <span className="font-mono">{mm}:{ss}</span>
+        {!running ? (
+          <button className="rounded-lg border px-2 py-0.5" onClick={start}>Start</button>
+        ) : (
+          <button className="rounded-lg border px-2 py-0.5" onClick={pause}>Pause</button>
+        )}
+        <button className="rounded-lg border px-2 py-0.5" onClick={reset}>Reset</button>
+      </div>
     );
+  }
+
+  // Preview modal
+  const [preview, setPreview] = useState<string | null>(null);
+  function PreviewModal({ url, onClose }: { url: string; onClose: () => void }) {
+    const isImg = /\.(png|jpe?g|webp|gif)$/i.test(url) || (!/\.(mp4|webm|mov|m4v)$/i.test(url));
+    return (
+      <div className="fixed inset-0 z-[100] grid place-items-center bg-black/70 p-4" onClick={onClose}>
+        <div className="max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
+          <div className="mb-2 flex justify-end">
+            <button className="rounded-lg bg-white/90 px-3 py-1 text-sm" onClick={onClose}>Sluiten</button>
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-zinc-700 bg-black">
+            {isImg ? (
+              <img src={url} alt="Voorbeeld" className="w-full max-h-[70vh] object-contain" />
+            ) : (
+              <video src={url} controls className="w-full max-h-[70vh]" />
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Local fallback storage for anonymous users ---
+  function loadLocal(sessionId: string): ExistingSet[] {
+    try {
+      const raw = localStorage.getItem(`ws:${sessionId}`);
+      if (!raw) return [];
+      const arr = JSON.parse(raw) as ExistingSet[];
+      return Array.isArray(arr) ? arr : [];
+    } catch { return []; }
+  }
+  async function listSetsLocal(sessionId: string): Promise<ExistingSet[]> {
+    return loadLocal(sessionId);
+  }
+  async function saveSetLocal(payload: SetLogUpsert) {
+    const sid = payload.session_id;
+    const arr = loadLocal(sid);
+    const key = `${payload.exercise_id}:${payload.set_index}`;
+    const idx = arr.findIndex((r) => `${r.exercise_id}:${r.set_index}` === key);
+    const row: ExistingSet = {
+      session_id: sid,
+      exercise_id: String(payload.exercise_id || payload.workout_exercise_id || ""),
+      set_index: payload.set_index,
+      reps: payload.reps ?? null,
+      weight_kg: payload.weight_kg ?? null,
+      time_seconds: (payload as any).time_seconds ?? (payload as any).time_sec ?? null,
+      rpe: payload.rpe ?? null,
+      completed: payload.completed ?? null,
+      notes: payload.notes ?? null,
+    };
+    if (idx >= 0) arr[idx] = row; else arr.push(row);
+    localStorage.setItem(`ws:${sid}`, JSON.stringify(arr));
+  }
+  async function completeLocal(sid: string): Promise<UserWorkoutSession> {
+    const s = session!;
+    const started = new Date(s.started_at).getTime();
+    const now = Date.now();
+    const dur = Math.max(0, Math.floor((now - started) / 1000));
+    const out: UserWorkoutSession = { ...s, status: "completed", completed_at: new Date().toISOString(), duration_sec: dur };
+    setSession(out);
+    return out;
   }
 
   if (loading) {
@@ -161,20 +293,33 @@ export default function ProgramDetail() {
           <span>Locatie: {workout.location ?? "-"}</span>
           <span>Duur: {workout.duration_minutes ?? 0} min</span>
           <span>Materiaal: {workout.equipment_required ? "ja" : "nee"}</span>
-        </div>
-
-        {!session && (
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={onStart}
-              className="px-4 py-2 rounded-xl bg-orange-600 text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/30 shadow-sm"
-            >
-              Start workout
-            </button>
-          </div>
-        )}
       </div>
+
+      {!session && (
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={onStart}
+            className="px-4 py-2 rounded-xl bg-orange-600 text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/30 shadow-sm"
+          >
+            Start workout
+          </button>
+        </div>
+      )}
+    </div>
+
+      {info ? (
+        <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-900/30 dark:text-amber-200 flex items-center justify-between gap-3">
+          <span>{info}</span>
+          <button
+            type="button"
+            onClick={() => setSignInOpen(true)}
+            className="rounded-lg border border-amber-400 bg-white/70 px-3 py-1 text-amber-800 hover:bg-white"
+          >
+            Inloggen
+          </button>
+        </div>
+      ) : null}
 
       {/* Blokken + oefeningen */}
       {!session && blocks.length > 0 && (
@@ -187,8 +332,11 @@ export default function ProgramDetail() {
                 key={b.id}
                 className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/60 p-4"
               >
-                <div className="font-semibold">{b.title ?? `Circuit ${b.sequence}`}</div>
-                {b.note ? <p className="text-sm text-zinc-600 dark:text-zinc-400">{b.note}</p> : null}
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold">{b.title ?? `Circuit ${b.sequence}`}</div>
+                  <TimerView seconds={parseSecondsFromNote(b.note)} />
+                </div>
+                {b.note ? <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{b.note}</p> : null}
 
                 <div className="mt-2 space-y-2">
                   {(exByBlock.get(b.id) ?? []).map((x) => {
@@ -209,19 +357,7 @@ export default function ProgramDetail() {
                           <div className="text-xs text-zinc-600 dark:text-zinc-400">{meta.join(" • ")}</div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {preview ? (
-                            <a
-                              href={preview}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs rounded-lg px-2 py-1 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                              title="Voorbeeld openen"
-                            >
-                              Voorbeeld
-                            </a>
-                          ) : (
-                            <span className="text-xs opacity-50">Geen media</span>
-                          )}
+                          {preview ? (\n                            <button\n                              onClick={() => setPreview(preview)}\n                              className="text-xs rounded-lg px-2 py-1 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"\n                              title="Voorbeeld openen"\n                            >\n                              Voorbeeld\n                            </button>\n                          ) : (\n                            <button\n                              onClick={() => window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(x.display_name + " exercise tutorial")}`, "_blank")}\n                              className="text-xs rounded-lg px-2 py-1 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"\n                              title="Zoek op YouTube"\n                            >\n                              YouTube\n                            </button>\n                          )}
                         </div>
                       </div>
                     );
@@ -238,9 +374,10 @@ export default function ProgramDetail() {
           <WorkoutLogger
             session={session}
             exercises={exercises}
-            onSaveSet={(payload: SetLogUpsert) => addOrUpdateSet(payload)}
+            onSaveSet={(payload: SetLogUpsert) => (session.id.startsWith('local_') ? saveSetLocal(payload) : addOrUpdateSet(payload))}
             loadSets={async (sid: string): Promise<ExistingSet[]> => {
               // Adapter: map DB-rows → Expected shape
+              if (sid.startsWith('local_')) return listSetsLocal(sid);
               const rows = await listSessionSets(sid as string);
               return (rows ?? [])
                 .filter((r: any) => typeof r?.exercise_id === "string")
@@ -257,7 +394,11 @@ export default function ProgramDetail() {
                 }));
             }}
             completeSession={async (sid: string) => {
-              const s = await completeSessionApi(sid);
+              if (sid.startsWith('local_')) return completeLocal(sid);
+              const started = new Date(session.started_at).getTime();
+              const now = Date.now();
+              const dur = Math.max(0, Math.floor((now - started) / 1000));
+              const s = await completeSessionApi(sid, dur);
               setSession(s);
               return s;
             }}
@@ -265,6 +406,13 @@ export default function ProgramDetail() {
           />
         </div>
       )}
+      {preview ? <PreviewModal url={preview} onClose={() => setPreview(null)} /> : null}
+      <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} />
     </div>
   );
 }
+
+
+
+
+
