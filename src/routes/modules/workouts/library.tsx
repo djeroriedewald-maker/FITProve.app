@@ -2,7 +2,9 @@
 import { useEffect, useMemo, useState } from "react";
 import WorkoutCard from "@/components/workouts/WorkoutCard";
 import { listWorkouts } from "@/lib/workouts-client";
-import type { Workout as WorkoutT } from "@/types/workout";\nimport { loadExerciseThumbnails, pickThumbFor } from "@/lib/exercise-thumbs";\nimport { supabase } from "@/lib/supabaseClient";
+import type { Workout as WorkoutT } from "@/types/workout";
+import { loadExerciseThumbnails, pickThumbFor } from "@/lib/exercise-thumbs";
+import { supabase } from "@/lib/supabaseClient";
 
 type WF = {
   q?: string;
@@ -15,9 +17,10 @@ type WF = {
 
 export default function WorkoutLibraryPage() {
   const [wf, setWf] = useState<WF>({ equipment: "any", duration: "any" });
-  const [workouts, setWorkouts] = useState<WorkoutT[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const [thumbs, setThumbs] = useState<string[]>([]);
+  const [styleMap, setStyleMap] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);\n  const [thumbs, setThumbs] = useState<string[]>([]);\n  const [styleMap, setStyleMap] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     let on = true;
