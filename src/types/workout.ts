@@ -54,6 +54,7 @@ export type UserWorkoutSession = {
   started_at: string;
   completed_at?: string | null;
   duration_sec?: number | null;
+  workout_title?: string | null;
 };
 
 /** Alias die soms in code gebruikt wordt */

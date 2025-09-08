@@ -58,7 +58,7 @@ export async function getWorkoutFull(id: string): Promise<{
 }
 
 /** Sessions & Set logs */
-export async function startSession(workoutId: string, userId?: string): Promise<UserWorkoutSession> {
+export async function startSession(workoutId: string, userId?: string, workoutTitle?: string): Promise<UserWorkoutSession> {
   // ✅ geen non-null assertion meer
   let uid = userId;
   if (!uid) {
@@ -68,17 +68,21 @@ export async function startSession(workoutId: string, userId?: string): Promise<
   if (!uid) throw new Error("Not authenticated");
 
   const payload: Partial<UserWorkoutSession> = {
-    workout_id: workoutId, user_id: uid, status: "active", started_at: new Date().toISOString(),
+    workout_id: workoutId,
+    user_id: uid,
+    status: "active",
+    started_at: new Date().toISOString(),
+    workout_title: workoutTitle ?? null,
   };
   const { data, error } = await supabase.from("workout_sessions").insert(payload).select("*").single();
   if (error) throw error;
   return data as UserWorkoutSession;
 }
 
-export async function completeSession(sessionId: string): Promise<UserWorkoutSession> {
+export async function completeSession(sessionId: string, durationSec?: number | null): Promise<UserWorkoutSession> {
   const { data, error } = await supabase
     .from("workout_sessions")
-    .update({ status: "completed", completed_at: new Date().toISOString() })
+    .update({ status: "completed", completed_at: new Date().toISOString(), duration_sec: durationSec ?? null })
     .eq("id", sessionId)
     .select("*")
     .single();
