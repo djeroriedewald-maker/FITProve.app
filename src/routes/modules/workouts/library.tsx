@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import WorkoutCard from "@/components/workouts/WorkoutCard";
 import { listWorkouts } from "@/lib/workouts-client";
-import type { Workout as WorkoutT } from "@/types/workout";
+import type { Workout as WorkoutT } from "@/types/workout";\nimport { loadExerciseThumbnails, pickThumbFor } from "@/lib/exercise-thumbs";\nimport { supabase } from "@/lib/supabaseClient";
 
 type WF = {
   q?: string;
@@ -17,7 +17,7 @@ export default function WorkoutLibraryPage() {
   const [wf, setWf] = useState<WF>({ equipment: "any", duration: "any" });
   const [workouts, setWorkouts] = useState<WorkoutT[]>([]);
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);\n  const [thumbs, setThumbs] = useState<string[]>([]);\n  const [styleMap, setStyleMap] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     let on = true;
@@ -33,7 +33,7 @@ export default function WorkoutLibraryPage() {
     })
       .then((data) => {
         if (!on) return;
-        setWorkouts(data || []);
+        setWorkouts(data || []);\n        (async () => {\n          try {\n            const ids = (data || []).map((w: any) => w.id);\n            if (!ids.length) { setStyleMap(new Map()); return; }\n            const { data: blocks } = await supabase.from("workout_blocks").select("workout_id, style, sequence").in("workout_id", ids);\n            const map = new Map<string, string>();\n            const prefer = (s?: string | null) => { if (!s) return '; const t = String(s); if (/warm/i.test(t) || /cool/i.test(t)) return '; return t; };\n            (blocks || []).forEach((b: any) => { const cur = map.get(b.workout_id); const pick = prefer(b.style) || cur || '; if (!cur && pick) map.set(b.workout_id, pick); });\n            setStyleMap(map);\n          } catch {}\n        })();
       })
       .catch((e) => {
         if (!on) return;
@@ -43,7 +43,7 @@ export default function WorkoutLibraryPage() {
     return () => {
       on = false;
     };
-  }, [wf]);
+  }, [wf]);\n\n  // Load exercise thumbnails pool for fallback imagery\n  useEffect(() => {\n    let on = true;\n    (async () => {\n      const list = await loadExerciseThumbnails(200);\n      if (on) setThumbs(list);\n    })();\n    return () => { on = false; };\n  }, []);
 
   const baseField =
     "h-10 text-sm rounded-lg border px-3 outline-none transition " +
@@ -124,8 +124,7 @@ export default function WorkoutLibraryPage() {
           <option value="45">45 min</option>
           <option value="60">60 min</option>
           <option value="90">90 min</option>
-        </select>
-        <button
+        </select>\r\n        <select value={wf.style ?? "any"} onChange={(e) => setWf((f) => ({ ...f, style: (e.target.value || "any") as any }))} className={selectField} aria-label="Soort training">\r\n          <option value="any">Alle soorten</option>\r\n          <option value="Strength">Strength</option>\r\n          <option value="Hypertrophy">Hypertrophy</option>\r\n          <option value="AMRAP">AMRAP</option>\r\n          <option value="EMOM">EMOM</option>\r\n          <option value="Intervals">Intervals</option>\r\n          <option value="Circuit">Circuit</option>\r\n          <option value="Mobility">Mobility</option>\r\n          <option value="Cardio">Cardio</option>\r\n        </select>\r\n        <button
           className={baseField + " px-3 h-10"}
           onClick={() => setWf({ equipment: "any", duration: "any" })}
           disabled={!hasFilters}
@@ -144,7 +143,7 @@ export default function WorkoutLibraryPage() {
             <div key={i} className="h-24 rounded-2xl bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
           ))}
         </div>
-      ) : workouts.length ? (
+       ) : (workouts.length ? (\n        (() => { const list = (wf.style && wf.style !== "any") ? workouts.filter((w:any) => (styleMap.get(w.id) || "").toLowerCase() === wf.style!.toLowerCase()) : workouts; return (<div className="mt-4 grid gap-3">{list.map((w:any) => (\n            <WorkoutCard\n              key={w.id}\n              id={w.id}\n              title={w.title}\n              duration={w.duration_minutes ?? undefined}\n              level={w.level ?? undefined}\n              tags={[]}\n              thumbnail={pickThumbFor(w.id || w.title, thumbs)}\n              to={`/modules/programs/${w.id}`}\n            />\n          ))}</div>); })()\n      ) : (
         <div className="mt-4 grid gap-3">
           {workouts.map((w) => (
             <WorkoutCard
@@ -154,7 +153,7 @@ export default function WorkoutLibraryPage() {
               duration={w.duration_minutes ?? undefined}  // null → undefined
               level={w.level ?? undefined}               // null → undefined
               tags={[]}
-              thumbnail={undefined}
+              thumbnail={pickThumbFor(w.id || w.title, thumbs)}
               to={`/modules/programs/${w.id}`}
             />
           ))}
@@ -167,3 +166,4 @@ export default function WorkoutLibraryPage() {
     </div>
   );
 }
+
