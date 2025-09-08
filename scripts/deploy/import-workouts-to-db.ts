@@ -115,7 +115,7 @@ async function main() {
     console.log(`[import] chunk ${i+1}/${manifest.chunks} (${items.length} items)`);
 
     for (const w of items) {
-      // Insert workout (let DB generate id)
+      // Upsert workout by slug; replace blocks/exercises for that workout
       const workoutRow: any = {
         title: w.title,
         slug: w.slug,
@@ -130,13 +130,44 @@ async function main() {
       if (DRY_RUN) {
         workoutId = `dry_${w.slug}`;
       } else {
-        const { data: wRow, error: wErr } = await client
+        // 1) Find existing by slug
+        const existing = await client
           .from('workouts')
-          .insert(workoutRow)
           .select('id')
-          .single();
-        if (wErr) { console.error('[import] workout insert failed', w.slug, wErr.message); continue; }
-        workoutId = (wRow as any).id as string;
+          .eq('slug', w.slug)
+          .maybeSingle();
+        if (existing.error && existing.error.code !== 'PGRST116') {
+          console.error('[import] workout select failed', w.slug, existing.error.message);
+          continue;
+        }
+        if (existing.data && (existing.data as any).id) {
+          workoutId = (existing.data as any).id as string;
+          // Update main fields
+          const { error: updErr } = await client.from('workouts').update(workoutRow).eq('id', workoutId);
+          if (updErr) { console.error('[import] workout update failed', w.slug, updErr.message); continue; }
+          // Wipe old blocks/exercises for this workout
+          const { data: blk, error: selErr } = await client
+            .from('workout_blocks')
+            .select('id')
+            .eq('workout_id', workoutId);
+          if (selErr) { console.error('[import] blocks select failed', w.slug, selErr.message); continue; }
+          const blockIds: string[] = (blk || []).map((r: any) => r.id);
+          if (blockIds.length) {
+            const { error: delXErr } = await client.from('workout_exercises').delete().in('block_id', blockIds);
+            if (delXErr) { console.error('[import] exercises delete failed', w.slug, delXErr.message); continue; }
+          }
+          const { error: delBErr } = await client.from('workout_blocks').delete().eq('workout_id', workoutId);
+          if (delBErr) { console.error('[import] blocks delete failed', w.slug, delBErr.message); continue; }
+        } else {
+          // Insert new
+          const { data: wRow, error: wErr } = await client
+            .from('workouts')
+            .insert(workoutRow)
+            .select('id')
+            .single();
+          if (wErr) { console.error('[import] workout insert failed', w.slug, wErr.message); continue; }
+          workoutId = (wRow as any).id as string;
+        }
       }
 
       // Helper: readable titles/notes per block
@@ -189,7 +220,8 @@ async function main() {
             block_id: blockId,
             sequence: xSeq,
             display_name: name,
-            target_sets: it.sets ?? null,
+            exercise_ref: vend,
+            target_sets: (it.sets ?? 0),
             target_reps: repsNum,
             target_time_seconds: it.timeSec ?? null,
             rest_seconds: it.restSec ?? null,
