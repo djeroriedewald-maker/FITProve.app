@@ -12,7 +12,11 @@
     "workouts:build": "tsx scripts/build/build-workout-library.ts public/data/workouts",
     "workouts:deploy": "tsx scripts/deploy/upload-to-supabase.ts public/data/workouts workouts",
     "exercises:deploy": "tsx scripts/deploy/upload-to-supabase.ts public/data/workouts exercises",
-    "images:sync": "tsx scripts/assets/sync-images.ts"
+    "images:sync": "tsx scripts/assets/sync-images.ts",
+    "workouts:import:dry": "tsx scripts/deploy/import-workouts-to-db.ts public/data/workouts --dry-run",
+    "workouts:import": "tsx scripts/deploy/import-workouts-to-db.ts public/data/workouts",
+    "db:sql:policies": "echo 'Run these in Supabase SQL editor: scripts/sql/rls-policies.sql'",
+    "db:sql:schema": "echo 'Run these in Supabase SQL editor: scripts/sql/schema-additions.sql'"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
