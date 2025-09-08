@@ -87,11 +87,22 @@ export default function ProgramDetail() {
     };
   }, [id, sidFromUrl]);
 
-  const exByBlock = useMemo(() => {
-    const map = new Map<string, WorkoutExercise[]>();
-    for (const ex of exercises) {
-      const key = ex.block_id;
-      if (!map.has(key)) map.set(key, []);
+  
+  // Load exercise dataset for media + instructions join
+  const [exMap, setExMap] = useState<Map<string, any>>(new Map());
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
+        const list = await loadAllExercises<any>();
+        if (!on) return;
+        const m = new Map<string, any>();
+        for (const ex of list) if (ex?.id) m.set(String(ex.id), ex);
+        setExMap(m);
+      } catch {}
+    })();
+    return () => { on = false; };
+  }, []);
       map.get(key)!.push(ex);
     }
     for (const list of map.values()) list.sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
@@ -137,17 +148,7 @@ export default function ProgramDetail() {
     }
   }
 
-  function previewUrl(x: WorkoutExercise): string | undefined {
-    return firstDefined(
-      x.media?.videos?.[0],
-      x.media?.gifs?.[0],
-      x.media?.images?.[0],
-      x.video_url ?? undefined,
-      x.gif_url ?? undefined,
-      x.image_url ?? undefined,
-      x.thumbnail ?? undefined
-    );
-  }
+  function previewUrl(x: WorkoutExercise): string | undefined {\n    const fromX = firstDefined(\n      x.media?.videos?.[0],\n      x.media?.gifs?.[0],\n      x.media?.images?.[0],\n      x.video_url ?? undefined,\n      x.gif_url ?? undefined,\n      x.image_url ?? undefined,\n      x.thumbnail ?? undefined\n    );\n    if (fromX) return fromX;\n    const ref = (x as any).exercise_ref as string | undefined;\n    const ex = ref ? exMap.get(ref) : undefined;\n    if (!ex) return undefined;\n    return firstDefined(ex?.media?.videos?.[0], ex?.media?.gifs?.[0], ex?.media?.images?.[0], ex?.media?.thumbnail);\n  }
 
   // --- Simple block timer from note ("Duur mm:ss") ---
   function parseSecondsFromNote(note?: string | null): number | undefined {
@@ -356,17 +357,7 @@ export default function ProgramDetail() {
                           <div className="text-xs text-zinc-600 dark:text-zinc-400">{meta.join(" • ")}</div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {preview ? (
-                            <button
-                              onClick={() => setPreview(preview)}
-                              className="text-xs rounded-lg px-2 py-1 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                              title="Voorbeeld openen"
-                            >
-                              Voorbeeld
-                            </button>
-                          ) : (
-                            <span className="text-xs opacity-50">Geen media</span>
-                          )}
+                          {preview ? (\n                            <button\n                              onClick={() => setPreview(preview)}\n                              className="text-xs rounded-lg px-2 py-1 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"\n                              title="Voorbeeld openen"\n                            >\n                              Voorbeeld\n                            </button>\n                          ) : (\n                            <button\n                              onClick={() => window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(x.display_name + " exercise tutorial")}`, "_blank")}\n                              className="text-xs rounded-lg px-2 py-1 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"\n                              title="Zoek op YouTube"\n                            >\n                              YouTube\n                            </button>\n                          )}
                         </div>
                       </div>
                     );
@@ -420,3 +411,8 @@ export default function ProgramDetail() {
     </div>
   );
 }
+
+
+
+
+

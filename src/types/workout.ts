@@ -27,6 +27,7 @@ export type WorkoutExercise = {
   block_id: string;
   sequence: number;
   display_name: string;
+  exercise_ref?: string;
   target_sets?: number | null;
   target_reps?: number | null;
   target_time_seconds?: number | null;
@@ -109,3 +110,4 @@ export type SetLogUpsert = {
   completed?: boolean | null;
   notes?: string | null;
 };
+
