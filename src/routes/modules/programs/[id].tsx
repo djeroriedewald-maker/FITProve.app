@@ -1,8 +1,9 @@
 // src/routes/modules/programs/[id].tsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import SignInDialog from "@/components/auth/SignInDialog";
 import { useParams, useLocation } from "react-router-dom";
+import SignInDialog from "@/components/auth/SignInDialog";
 import WorkoutLogger from "@/components/workouts/WorkoutLogger";
+import { loadAllExercises } from "@/workout-sources";
 
 import {
   getWorkoutFull,
@@ -20,10 +21,9 @@ import type {
   SetLogUpsert,
 } from "@/types/workout";
 
-/** === Types alleen voor deze file (verwacht door WorkoutLogger) === */
 type ExistingSet = {
   session_id: string;
-  exercise_id: string; // verplicht
+  exercise_id: string;
   set_index: number;
   reps?: number | null;
   weight_kg?: number | null;
@@ -51,8 +51,8 @@ export default function ProgramDetail() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
+  const [exMap, setExMap] = useState<Map<string, any>>(new Map());
 
-  // Load workout + optionally existing session
   useEffect(() => {
     let on = true;
     (async () => {
@@ -63,7 +63,6 @@ export default function ProgramDetail() {
         setWorkout(data.workout);
         setBlocks(data.blocks || []);
         setExercises(data.exercises || []);
-
         if (sidFromUrl) {
           setSession({
             id: sidFromUrl,
@@ -82,14 +81,20 @@ export default function ProgramDetail() {
         if (on) setLoading(false);
       }
     })();
-    return () => {
-      on = false;
-    };
+    return () => { on = false; };
   }, [id, sidFromUrl]);
 
-  
-  // Load exercise dataset for media + instructions join
-  const [exMap, setExMap] = useState<Map<string, any>>(new Map());
+  const exByBlock = useMemo(() => {
+    const map = new Map<string, WorkoutExercise[]>();
+    for (const ex of exercises) {
+      const key = ex.block_id;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(ex);
+    }
+    for (const list of map.values()) list.sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+    return map;
+  }, [exercises]);
+
   useEffect(() => {
     let on = true;
     (async () => {
@@ -103,11 +108,6 @@ export default function ProgramDetail() {
     })();
     return () => { on = false; };
   }, []);
-      map.get(key)!.push(ex);
-    }
-    for (const list of map.values()) list.sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
-    return map;
-  }, [exercises]);
 
   async function onStart() {
     try {
@@ -117,7 +117,6 @@ export default function ProgramDetail() {
         setSession(s);
         setInfo(null);
       } catch (e: any) {
-        // Fallback: lokale sessie zodat publiek kan loggen zonder account
         const msg = String(e?.message || "");
         if (/not authenticated/i.test(msg) || /auth/i.test(msg)) {
           const local: UserWorkoutSession = {
@@ -129,28 +128,19 @@ export default function ProgramDetail() {
             completed_at: null,
             duration_sec: null,
             workout_title: workout?.title ?? null,
-          };
+          } as any;
           setSession(local);
           setInfo("Niet ingelogd: we slaan je sessie lokaal op. Log in om je voortgang te bewaren in je account.");
         } else {
           throw e;
         }
       }
-      window.requestAnimationFrame(() => {
-        try {
-          window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
-        } catch {
-          /* noop */
-        }
-      });
+      try { window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }); } catch {}
     } catch (e: any) {
       setError(e?.message ?? "Kon sessie niet starten.");
     }
   }
 
-  function previewUrl(x: WorkoutExercise): string | undefined {\n    const fromX = firstDefined(\n      x.media?.videos?.[0],\n      x.media?.gifs?.[0],\n      x.media?.images?.[0],\n      x.video_url ?? undefined,\n      x.gif_url ?? undefined,\n      x.image_url ?? undefined,\n      x.thumbnail ?? undefined\n    );\n    if (fromX) return fromX;\n    const ref = (x as any).exercise_ref as string | undefined;\n    const ex = ref ? exMap.get(ref) : undefined;\n    if (!ex) return undefined;\n    return firstDefined(ex?.media?.videos?.[0], ex?.media?.gifs?.[0], ex?.media?.images?.[0], ex?.media?.thumbnail);\n  }
-
-  // --- Simple block timer from note ("Duur mm:ss") ---
   function parseSecondsFromNote(note?: string | null): number | undefined {
     if (!note) return undefined;
     const m = /Duur\s+(\d{1,2}):(\d{2})/.exec(note);
@@ -160,21 +150,20 @@ export default function ProgramDetail() {
     if (Number.isFinite(mm) && Number.isFinite(ss)) return mm * 60 + ss;
     return undefined;
   }
-  function useCountdown(initialSec: number | undefined) {
-    const [sec, setSec] = useState<number>(initialSec ?? 0);
+
+  function useCountdown(initialSec?: number) {
+    const [sec, setSec] = useState<number>(initialSec || 0);
     const [running, setRunning] = useState(false);
     const timer = useRef<number | null>(null);
-    useEffect(() => { setSec(initialSec ?? 0); setRunning(false); }, [initialSec]);
+    useEffect(() => { setSec(initialSec || 0); setRunning(false); }, [initialSec]);
     useEffect(() => {
       if (!running) return;
       timer.current = window.setInterval(() => setSec((s) => (s > 0 ? s - 1 : 0)), 1000) as any;
       return () => { if (timer.current) window.clearInterval(timer.current); };
     }, [running]);
-    const start = () => setRunning(true);
-    const pause = () => setRunning(false);
-    const reset = () => { setRunning(false); setSec(initialSec ?? 0); };
-    return { sec, running, start, pause, reset };
+    return { sec, running, start: () => setRunning(true), pause: () => setRunning(false), reset: () => { setRunning(false); setSec(initialSec || 0); } };
   }
+
   function TimerView({ seconds }: { seconds?: number }) {
     if (!seconds || seconds <= 0) return null;
     const { sec, running, start, pause, reset } = useCountdown(seconds);
@@ -193,7 +182,6 @@ export default function ProgramDetail() {
     );
   }
 
-  // Preview modal
   const [preview, setPreview] = useState<string | null>(null);
   function PreviewModal({ url, onClose }: { url: string; onClose: () => void }) {
     const isImg = /\.(png|jpe?g|webp|gif)$/i.test(url) || (!/\.(mp4|webm|mov|m4v)$/i.test(url));
@@ -215,7 +203,24 @@ export default function ProgramDetail() {
     );
   }
 
-  // --- Local fallback storage for anonymous users ---
+  function previewUrl(x: WorkoutExercise): string | undefined {
+    const fromX = firstDefined(
+      (x as any).media?.videos?.[0],
+      (x as any).media?.gifs?.[0],
+      (x as any).media?.images?.[0],
+      (x as any).video_url ?? undefined,
+      (x as any).gif_url ?? undefined,
+      (x as any).image_url ?? undefined,
+      (x as any).thumbnail ?? undefined
+    );
+    if (fromX) return fromX;
+    const ref = (x as any).exercise_ref as string | undefined;
+    const ex = ref ? exMap.get(ref) : undefined;
+    if (!ex) return undefined;
+    return firstDefined(ex?.media?.videos?.[0], ex?.media?.gifs?.[0], ex?.media?.images?.[0], ex?.media?.thumbnail);
+  }
+
+  // Local storage fallback
   function loadLocal(sessionId: string): ExistingSet[] {
     try {
       const raw = localStorage.getItem(`ws:${sessionId}`);
@@ -224,9 +229,7 @@ export default function ProgramDetail() {
       return Array.isArray(arr) ? arr : [];
     } catch { return []; }
   }
-  async function listSetsLocal(sessionId: string): Promise<ExistingSet[]> {
-    return loadLocal(sessionId);
-  }
+  async function listSetsLocal(sessionId: string): Promise<ExistingSet[]> { return loadLocal(sessionId); }
   async function saveSetLocal(payload: SetLogUpsert) {
     const sid = payload.session_id;
     const arr = loadLocal(sid);
@@ -251,33 +254,19 @@ export default function ProgramDetail() {
     const started = new Date(s.started_at).getTime();
     const now = Date.now();
     const dur = Math.max(0, Math.floor((now - started) / 1000));
-    const out: UserWorkoutSession = { ...s, status: "completed", completed_at: new Date().toISOString(), duration_sec: dur };
+    const out: UserWorkoutSession = { ...s, status: "completed", completed_at: new Date().toISOString(), duration_sec: dur } as any;
     setSession(out);
     return out;
   }
 
   if (loading) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-6 space-y-3">
-        <div className="h-8 w-48 rounded bg-zinc-200 dark:bg-zinc-800 animate-pulse" />
-        <div className="h-24 rounded-2xl bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
-        <div className="h-24 rounded-2xl bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
-      </div>
-    );
+    return (<div className="max-w-3xl mx-auto px-4 py-6"><div className="h-24 rounded-2xl bg-muted/40 animate-pulse" /></div>);
   }
   if (error) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-6">
-        <p className="text-red-600 dark:text-red-400">{error}</p>
-      </div>
-    );
+    return (<div className="max-w-3xl mx-auto px-4 py-6"><p className="text-red-600 dark:text-red-400">{error}</p></div>);
   }
   if (!workout) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-6">
-        <p className="opacity-70">Workout niet gevonden.</p>
-      </div>
-    );
+    return (<div className="max-w-3xl mx-auto px-4 py-6"><p className="opacity-70">Workout niet gevonden.</p></div>);
   }
 
   return (
@@ -293,82 +282,61 @@ export default function ProgramDetail() {
           <span>Locatie: {workout.location ?? "-"}</span>
           <span>Duur: {workout.duration_minutes ?? 0} min</span>
           <span>Materiaal: {workout.equipment_required ? "ja" : "nee"}</span>
-      </div>
-
-      {!session && (
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={onStart}
-            className="px-4 py-2 rounded-xl bg-orange-600 text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/30 shadow-sm"
-          >
-            Start workout
-          </button>
         </div>
-      )}
-    </div>
+
+        {!session && (
+          <div className="mt-4">
+            <button type="button" onClick={onStart} className="px-4 py-2 rounded-xl bg-orange-600 text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/30 shadow-sm">Start workout</button>
+          </div>
+        )}
+      </div>
 
       {info ? (
         <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-900/30 dark:text-amber-200 flex items-center justify-between gap-3">
           <span>{info}</span>
-          <button
-            type="button"
-            onClick={() => setSignInOpen(true)}
-            className="rounded-lg border border-amber-400 bg-white/70 px-3 py-1 text-amber-800 hover:bg-white"
-          >
-            Inloggen
-          </button>
+          <button type="button" onClick={() => setSignInOpen(true)} className="rounded-lg border border-amber-400 bg-white/70 px-3 py-1 text-amber-800 hover:bg-white">Inloggen</button>
         </div>
       ) : null}
 
-      {/* Blokken + oefeningen */}
       {!session && blocks.length > 0 && (
         <div className="mt-6 space-y-4">
-          {blocks
-            .slice()
-            .sort((a, b) => a.sequence - b.sequence)
-            .map((b) => (
-              <div
-                key={b.id}
-                className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/60 p-4"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="font-semibold">{b.title ?? `Circuit ${b.sequence}`}</div>
-                  <TimerView seconds={parseSecondsFromNote(b.note)} />
-                </div>
-                {b.note ? <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{b.note}</p> : null}
-
-                <div className="mt-2 space-y-2">
-                  {(exByBlock.get(b.id) ?? []).map((x) => {
-                    const preview = previewUrl(x);
-                    const meta: string[] = [];
-                    if (x.target_sets) meta.push(`${x.target_sets}×`);
-                    if (x.target_reps) meta.push(`${x.target_reps} reps`);
-                    if (x.target_time_seconds) meta.push(`${x.target_time_seconds}s`);
-                    if (x.rest_seconds) meta.push(`Rust ${x.rest_seconds}s`);
-
-                    return (
-                      <div
-                        key={x.id}
-                        className="flex items-center justify-between rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3"
-                      >
-                        <div>
-                          <div className="font-medium">{x.display_name}</div>
-                          <div className="text-xs text-zinc-600 dark:text-zinc-400">{meta.join(" • ")}</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {preview ? (\n                            <button\n                              onClick={() => setPreview(preview)}\n                              className="text-xs rounded-lg px-2 py-1 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"\n                              title="Voorbeeld openen"\n                            >\n                              Voorbeeld\n                            </button>\n                          ) : (\n                            <button\n                              onClick={() => window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(x.display_name + " exercise tutorial")}`, "_blank")}\n                              className="text-xs rounded-lg px-2 py-1 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"\n                              title="Zoek op YouTube"\n                            >\n                              YouTube\n                            </button>\n                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+          {blocks.slice().sort((a, b) => a.sequence - b.sequence).map((b) => (
+            <div key={b.id} className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/60 p-4">
+              <div className="flex items-center justify-between">
+                <div className="font-semibold">{b.title ?? `Circuit ${b.sequence}`}</div>
+                <TimerView seconds={parseSecondsFromNote(b.note)} />
               </div>
-            ))}
+              {b.note ? <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{b.note}</p> : null}
+              <div className="mt-2 space-y-2">
+                {(exByBlock.get(b.id) ?? []).map((x) => {
+                  const preview = previewUrl(x);
+                  const meta: string[] = [];
+                  if (x.target_sets) meta.push(`${x.target_sets} sets`);
+                  if (x.target_reps) meta.push(`${x.target_reps} reps`);
+                  if (x.target_time_seconds) meta.push(`${x.target_time_seconds}s`);
+                  if (x.rest_seconds) meta.push(`Rust ${x.rest_seconds}s`);
+                  return (
+                    <div key={x.id} className="flex items-center justify-between rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3">
+                      <div>
+                        <div className="font-medium">{x.display_name}</div>
+                        <div className="text-xs text-zinc-600 dark:text-zinc-400">{meta.join(" · ")}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {preview ? (
+                          <button onClick={() => setPreview(preview)} className="text-xs rounded-lg px-2 py-1 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800" title="Voorbeeld openen">Voorbeeld</button>
+                        ) : (
+                          <button onClick={() => window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(x.display_name + ' exercise tutorial')}`, "_blank")} className="text-xs rounded-lg px-2 py-1 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800" title="Zoek op YouTube">YouTube</button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Logger */}
       {session && (
         <div className="mt-6">
           <WorkoutLogger
@@ -376,7 +344,6 @@ export default function ProgramDetail() {
             exercises={exercises}
             onSaveSet={(payload: SetLogUpsert) => (session.id.startsWith('local_') ? saveSetLocal(payload) : addOrUpdateSet(payload))}
             loadSets={async (sid: string): Promise<ExistingSet[]> => {
-              // Adapter: map DB-rows → Expected shape
               if (sid.startsWith('local_')) return listSetsLocal(sid);
               const rows = await listSessionSets(sid as string);
               return (rows ?? [])
@@ -395,7 +362,7 @@ export default function ProgramDetail() {
             }}
             completeSession={async (sid: string) => {
               if (sid.startsWith('local_')) return completeLocal(sid);
-              const started = new Date(session.started_at).getTime();
+              const started = new Date(session!.started_at).getTime();
               const now = Date.now();
               const dur = Math.max(0, Math.floor((now - started) / 1000));
               const s = await completeSessionApi(sid, dur);
@@ -406,13 +373,10 @@ export default function ProgramDetail() {
           />
         </div>
       )}
+
       {preview ? <PreviewModal url={preview} onClose={() => setPreview(null)} /> : null}
       <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} />
     </div>
   );
 }
-
-
-
-
 
