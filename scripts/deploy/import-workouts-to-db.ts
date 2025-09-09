@@ -119,7 +119,7 @@ async function main() {
       const workoutRow: any = {
         title: w.title,
         slug: w.slug,
-        description: w.notes ?? null,
+        description: null,
         goal: w.goal ?? null,
         level: w.level ?? null,
         location: w.location ?? null,
@@ -220,7 +220,7 @@ async function main() {
             block_id: blockId,
             sequence: xSeq,
             display_name: name,
-            exercise_ref: vend,
+            exercise_id: vend,
             target_sets: (it.sets ?? 0),
             target_reps: repsNum,
             target_time_seconds: it.timeSec ?? null,

@@ -5,19 +5,30 @@
 
 type Manifest = { total: number; chunks: number; chunkSize?: number; version?: string; basePath?: string; generatedAt?: string };
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`HTTP ${res.status} @ ${url}`);
+const DEFAULT_CACHE_TIME = 5 * 60 * 1000; // 5 minutes
+const cache = new Map<string, { data: any; timestamp: number }>();
+
+async function fetchJson<T>(url: string, maxAge = DEFAULT_CACHE_TIME): Promise<T> {
+  const now = Date.now();
+  const cached = cache.get(url);
+  
+  if (cached && now - cached.timestamp < maxAge) {
+    return cached.data as T;
+  }
+
   try {
-    return (await res.json()) as T;
-  } catch (e: any) {
-    // Extra debug in dev: log first chars of body when JSON fails
-    if ((import.meta as any)?.env?.DEV) {
-      try {
-        const txt = await res.clone().text();
-        console.error('JSON parse failed for', url, 'first bytes:', txt.slice(0, 120));
-      } catch {}
+    console.log('[workout-sources] Fetching:', url);
+    const res = await fetch(url, { cache: 'no-store' });
+    
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} @ ${url}`);
     }
+
+    const data = await res.json();
+    cache.set(url, { data, timestamp: now });
+    return data as T;
+  } catch (e: any) {
+    console.error('[workout-sources] Fetch failed:', url, e);
     throw e;
   }
 }

@@ -2,11 +2,9 @@
 import { useEffect, useMemo, useState } from "react";
 import WorkoutCard from "@/components/workouts/WorkoutCard";
 import { listWorkouts } from "@/lib/workouts-client";
-import { loadAllWorkouts } from "@/workout-sources";
 import type { Workout as WorkoutT } from "@/types/workout";
 import { loadExerciseThumbnails, pickThumbFor } from "@/lib/exercise-thumbs";
 import { supabase } from "@/lib/supabaseClient";
-import { useAuth } from "@/context/AuthProvider";
 
 type WF = {
   q?: string;
@@ -19,8 +17,6 @@ type WF = {
 };
 
 export default function WorkoutLibraryPage() {
-  const { user, loading: authLoading } = useAuth();
-  
   // State
   const [wf, setWf] = useState<WF>({ equipment: "any", duration: "any", style: "any" });
   const [workouts, setWorkouts] = useState<WorkoutT[]>([]);
@@ -29,22 +25,13 @@ export default function WorkoutLibraryPage() {
   const [thumbs, setThumbs] = useState<string[]>([]);
   const [styleMap, setStyleMap] = useState<Map<string, string>>(new Map());
 
-  // Load workouts when filters change or auth state updates
+  // Load workouts when filters change
   useEffect(() => {
     let mounted = true;
 
-    // Don't load workouts if we're still checking auth
-    if (authLoading) return;
-
-    // Don't load workouts if user is not logged in
-    if (!user) {
-      setErr("Log in om workouts te bekijken");
-      return;
-    }
-
     const loadWorkouts = async () => {
       if (!mounted) return;
-
+      
       setLoading(true);
       setErr(null);
       setWorkouts([]);
@@ -52,8 +39,8 @@ export default function WorkoutLibraryPage() {
 
       try {
         console.log('[WorkoutLibrary] Loading workouts with filters:', wf);
-
-        let data = await listWorkouts({
+        
+        const data = await listWorkouts({
           q: wf.q,
           goal: wf.goal || undefined,
           level: wf.level || undefined,
@@ -63,62 +50,45 @@ export default function WorkoutLibraryPage() {
           style: wf.style === 'any' ? undefined : wf.style
         });
 
-        // Fallback: als Supabase geen data geeft, laad uit statische JSON
-        let all: any[] | undefined = undefined;
-        if (!Array.isArray(data) || data.length === 0) {
-          console.warn('[WorkoutLibrary] Geen workouts uit Supabase, probeer fallback naar statische JSON');
-          all = await loadAllWorkouts<any>();
-          // Map JSON naar WorkoutT
-          data = all.map((w: any) => ({
-            id: w.id,
-            title: w.title,
-            description: w.description || null,
-            goal: w.goal || null,
-            level: w.level || null,
-            location: w.location || null,
-            duration_minutes: w.durationMin || w.duration_minutes || null,
-            equipment_required: Array.isArray(w.equipment) ? w.equipment.length > 0 && w.equipment[0] !== 'bodyweight' : (w.equipment_required ?? null),
-          }));
-        }
-
         if (!mounted) return;
 
+        if (!Array.isArray(data)) {
+          throw new Error('Unexpected response format from server');
+        }
+
+        // Store workouts
         setWorkouts(data);
 
+        // If no workouts found, we're done
         if (data.length === 0) {
           return;
         }
 
-        // StyleMap fallback: probeer uit blocks in JSON, anders Supabase
-        let ids = data.map((w: any) => w.id);
-        let map = new Map<string, string>();
-        let blocks: any[] = [];
-        // Probeer uit Supabase
-        const { data: sbBlocks, error: blockError } = await supabase
+        // Load blocks for style mapping
+        const ids = data.map(w => w.id);
+        const { data: blocks, error: blockError } = await supabase
           .from('workout_blocks')
           .select('workout_id, title')
           .in('workout_id', ids);
-        if (!blockError && Array.isArray(sbBlocks)) {
-          blocks = sbBlocks;
-        } else if (all) {
-          // Fallback: probeer blocks uit JSON
-          for (const w of all) {
-            if (Array.isArray(w.blocks)) {
-              for (const b of w.blocks) {
-                if (b && b.style) {
-                  map.set(w.id, b.style);
-                }
-              }
-            }
-          }
+
+        if (blockError) {
+          console.error('[WorkoutLibrary] Error loading blocks:', blockError);
+          return;
         }
-        if (blocks.length) {
-          const prefer = (title?: string | null): string => {
-            if (!title) return '';
-            const t = String(title).toLowerCase();
-            if (t.includes('warm') || t.includes('cool')) return '';
-            return t;
-          };
+
+        if (!mounted) return;
+
+        // Build style map from block titles
+        const map = new Map<string, string>();
+        
+        const prefer = (title?: string | null): string => {
+          if (!title) return '';
+          const t = String(title).toLowerCase();
+          if (t.includes('warm') || t.includes('cool')) return '';
+          return t;
+        };
+
+        if (blocks) {
           blocks.forEach(b => {
             const style = prefer(b.title);
             if (style && !map.has(b.workout_id)) {
@@ -126,12 +96,19 @@ export default function WorkoutLibraryPage() {
             }
           });
         }
-        setStyleMap(map);
+
+        if (mounted) {
+          setStyleMap(map);
+        }
       } catch (e: any) {
         console.error('[WorkoutLibrary] Error:', e);
-        setErr(e?.message || 'Kon workouts niet laden');
+        if (mounted) {
+          setErr(e?.message || "Kon workouts niet laden");
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -140,7 +117,7 @@ export default function WorkoutLibraryPage() {
     return () => {
       mounted = false;
     };
-  }, [wf, user, authLoading]);
+  }, [wf]);
 
   // Load thumbnails on mount
   useEffect(() => {
@@ -150,9 +127,9 @@ export default function WorkoutLibraryPage() {
       try {
         console.log('[WorkoutLibrary] Loading thumbnails...');
         const list = await loadExerciseThumbnails(200);
-
+        
         if (!mounted) return;
-
+        
         if (Array.isArray(list) && list.length > 0) {
           console.log('[WorkoutLibrary] Loaded', list.length, 'thumbnails');
           setThumbs(list);
@@ -161,8 +138,9 @@ export default function WorkoutLibraryPage() {
         }
       } catch (e) {
         console.error('[WorkoutLibrary] Failed to load thumbnails:', e);
-        setErr('Kon thumbnails niet laden');
-        setThumbs([]);
+        if (mounted) {
+          setThumbs([]);
+        }
       }
     }
 
@@ -205,7 +183,8 @@ export default function WorkoutLibraryPage() {
       return [];
     }
 
-    if (wf.style && wf.style !== 'any') {
+    // Filter workouts based on style if needed
+    if (wf.style && wf.style !== "any") {
       const want = wf.style.toLowerCase();
       return workouts.filter(w => {
         const style = styleMap.get(w.id)?.toLowerCase();

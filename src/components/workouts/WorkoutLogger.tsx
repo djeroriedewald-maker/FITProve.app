@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { WorkoutExercise, UserWorkoutSession, SetLogUpsert } from "@/types/workout";
+import { CircleTimer } from "./CircleTimer";
 
 type Value = {
   reps?: number | null;
@@ -145,6 +146,14 @@ export default function WorkoutLogger({
     }
   }
 
+  async function markAllCompleted(exerciseId: string) {
+    const maxSets = setCounts.get(exerciseId) ?? 2;
+    for (let i = 0; i < maxSets; i++) {
+      await update(exerciseId, i, { completed: true });
+      await persist(exerciseId, i);
+    }
+  }
+
   async function handleComplete() {
     try {
       setBusyComplete(true);
@@ -214,11 +223,27 @@ export default function WorkoutLogger({
                     <input
                       className="h-9 rounded-lg border px-2 text-sm bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700"
                       placeholder="Tijd (s)"
-                      value={v.time_seconds ?? ""}
+                      value={v.time_seconds ?? ex.target_time_seconds ?? ""}
                       onChange={(e) => update(ex.id, i, { time_seconds: parseNum(e.target.value) })}
                       onBlur={() => void persist(ex.id, i)}
                       inputMode="numeric"
                     />
+                    {ex.target_time_seconds && !v.completed && (
+                      <div className="absolute right-16">
+                        <CircleTimer
+                          duration={ex.target_time_seconds}
+                          size={32}
+                          strokeWidth={3}
+                          onComplete={() => {
+                            update(ex.id, i, { 
+                              completed: true,
+                              time_seconds: ex.target_time_seconds
+                            });
+                            persist(ex.id, i);
+                          }}
+                        />
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"

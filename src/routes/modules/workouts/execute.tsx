@@ -1,53 +1,81 @@
-import { useState } from "react";
-import SetLogger, { SetEntry } from "@/components/workouts/SetLogger";
-
-type LoggedSet = SetEntry & { id: string; exercise: string; set_index: number };
+import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
+import { WorkoutFlow } from "@/components/workouts/WorkoutFlow";
+import { getWorkoutFull } from "@/lib/workouts-client";
+import type { Workout, WorkoutBlock, WorkoutExercise } from "@/types/workout";
 
 export default function ExecuteWorkout() {
-  const [sets, setSets] = useState<LoggedSet[]>([]);
-  const [exercise, setExercise] = useState("Bodyweight Squat");
-  const [idx, setIdx] = useState(1);
+  const { id } = useParams<{ id: string }>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [workout, setWorkout] = useState<Workout | null>(null);
+  const [blocks, setBlocks] = useState<WorkoutBlock[]>([]);
+  const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
 
-  function addSet(entry: SetEntry) {
-    setSets((s) => [...s, { ...entry, id: crypto.randomUUID(), exercise, set_index: idx }]);
-    setIdx((n) => n + 1);
+  useEffect(() => {
+    let mounted = true;
+    
+    async function loadWorkout() {
+      if (!id) {
+        setError("Geen workout ID gevonden");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        console.log('[ExecuteWorkout] Loading workout:', id);
+        const data = await getWorkoutFull(id);
+        console.log('[ExecuteWorkout] Loaded workout data:', data);
+        
+        if (!mounted) return;
+        
+        setWorkout(data.workout);
+        setBlocks(data.blocks);
+        setExercises(data.exercises);
+        setLoading(false);
+      } catch (err) {
+        console.error('[ExecuteWorkout] Error loading workout:', err);
+        if (!mounted) return;
+        setError(err instanceof Error ? err.message : "Kon workout niet laden");
+        setLoading(false);
+      }
+    }
+
+    loadWorkout();
+    return () => { mounted = false; };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500 mx-auto"></div>
+          <p className="mt-4">Workout laden...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !workout || !blocks.length || !exercises.length) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h1 className="text-xl font-semibold mb-2">Error</h1>
+          <p className="text-gray-600">{error || "Kon workout niet laden"}</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="px-4 py-4 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold">Workout bezig…</h1>
-      <p className="opacity-80">Log je sets. (Volgende PR: persist naar Supabase.)</p>
-
-      <div className="mt-4">
-        <label className="block text-sm mb-1">Oefening</label>
-        <input
-          value={exercise}
-          onChange={(e) => setExercise(e.target.value)}
-          className="w-full rounded-xl px-3 py-2 bg-neutral-900 border border-neutral-700"
-        />
-      </div>
-
-      <div className="mt-3">
-        <SetLogger onAdd={addSet} />
-      </div>
-
-      <div className="mt-6">
-        <h2 className="font-semibold mb-2">Gelogde sets</h2>
-        <ul className="space-y-2">
-          {sets.map((s) => (
-            <li key={s.id} className="rounded-xl border border-neutral-800 p-3">
-              <div className="text-sm opacity-80">#{s.set_index} — {s.exercise}</div>
-              <div className="text-sm">
-                {s.weight_kg ? `${s.weight_kg}kg • ` : ""}{s.reps ? `${s.reps} reps • ` : ""}
-                {s.time_sec ? `${s.time_sec}s • ` : ""}{s.rpe ? `RPE ${s.rpe}` : ""}
-              </div>
-            </li>
-          ))}
-          {sets.length === 0 && <li className="opacity-70">Nog geen sets gelogd.</li>}
-        </ul>
-      </div>
-
-      <div className="mt-6 flex gap-2">
+    <div className="max-w-3xl mx-auto py-4">
+      <WorkoutFlow 
+        workout={workout}
+        blocks={blocks}
+        exercises={exercises}
+      />
+    </div>
+  );
         <button className="px-4 py-2 rounded-xl border border-neutral-700">Pauze</button>
         <button className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700">Afronden</button>
       </div>

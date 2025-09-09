@@ -113,7 +113,7 @@ export default function ProgramDetail() {
     try {
       if (!id) return;
       try {
-        const s = await startSession(id, undefined, workout?.title);
+        const s = await startSession(id);
         setSession(s);
         setInfo(null);
       } catch (e: any) {
@@ -214,7 +214,7 @@ export default function ProgramDetail() {
       (x as any).thumbnail ?? undefined
     );
     if (fromX) return fromX;
-    const ref = (x as any).exercise_ref as string | undefined;
+    const ref = (x as any).exercise_id as string | undefined;
     const ex = ref ? exMap.get(ref) : undefined;
     if (!ex) return undefined;
     return firstDefined(ex?.media?.videos?.[0], ex?.media?.gifs?.[0], ex?.media?.images?.[0], ex?.media?.thumbnail);
@@ -342,7 +342,20 @@ export default function ProgramDetail() {
           <WorkoutLogger
             session={session}
             exercises={exercises}
-            onSaveSet={(payload: SetLogUpsert) => (session.id.startsWith('local_') ? saveSetLocal(payload) : addOrUpdateSet(payload))}
+            onSaveSet={(payload: SetLogUpsert) => {
+              if (session.id.startsWith('local_')) {
+                return saveSetLocal(payload);
+              }
+              if (!payload.exercise_id || typeof payload.set_index !== 'number') {
+                throw new Error('Invalid set data');
+              }
+              return addOrUpdateSet(
+                session.id,
+                payload.exercise_id,
+                payload.set_index,
+                payload
+              );
+            }}
             loadSets={async (sid: string): Promise<ExistingSet[]> => {
               if (sid.startsWith('local_')) return listSetsLocal(sid);
               const rows = await listSessionSets(sid as string);

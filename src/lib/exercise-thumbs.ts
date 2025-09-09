@@ -8,19 +8,43 @@ export type ExerciseLike = { id: string; name?: string; media?: { images?: strin
 let pool: string[] | null = null;
 
 export async function loadExerciseThumbnails(max = 200): Promise<string[]> {
-  if (pool && pool.length) return pool;
+  if (pool && pool.length) {
+    console.log('[exercise-thumbs] Returning cached pool:', pool.length, 'thumbnails');
+    return pool;
+  }
+
   try {
+    console.log('[exercise-thumbs] Loading exercise thumbnails...');
     const all = await loadAllExercises<ExerciseLike>();
+    
+    if (!Array.isArray(all)) {
+      console.error('[exercise-thumbs] Invalid response format:', all);
+      throw new Error('Invalid exercise data format');
+    }
+
     const out: string[] = [];
+    let skipped = 0;
+
     for (const ex of all) {
-      const m = ex?.media || {};
+      if (!ex || typeof ex !== 'object') continue;
+      
+      const m = ex.media || {};
       const url = m.thumbnail || (m.images && m.images[0]) || (m.gifs && m.gifs[0]);
-      if (url) out.push(url);
+      
+      if (url && typeof url === 'string') {
+        out.push(url);
+      } else {
+        skipped++;
+      }
+
       if (out.length >= max) break;
     }
+
+    console.log(`[exercise-thumbs] Loaded ${out.length} thumbnails (skipped ${skipped})`);
     pool = out;
     return out;
-  } catch {
+  } catch (e) {
+    console.error('[exercise-thumbs] Failed to load thumbnails:', e);
     pool = [];
     return [];
   }
@@ -34,9 +58,25 @@ function djb2(str: string): number {
 }
 
 export function pickThumbFor(key: string, list?: string[] | null): string | undefined {
-  const arr = (list && list.length ? list : pool) || [];
-  if (!arr.length) return undefined;
-  const idx = djb2(key) % arr.length;
-  return arr[idx];
+  if (!key) {
+    console.warn('[exercise-thumbs] Called pickThumbFor with empty key');
+    return undefined;
+  }
+
+  const arr = (list && Array.isArray(list) && list.length ? list : pool) || [];
+  
+  if (!arr.length) {
+    return undefined;
+  }
+
+  const idx = Math.abs(djb2(key)) % arr.length;
+  const thumb = arr[idx];
+  
+  if (!thumb || typeof thumb !== 'string') {
+    console.warn('[exercise-thumbs] Invalid thumbnail selected for key:', key);
+    return undefined;
+  }
+
+  return thumb;
 }
 

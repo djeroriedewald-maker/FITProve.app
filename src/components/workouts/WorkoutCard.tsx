@@ -31,7 +31,7 @@ export default function WorkoutCard({
     return parts.join(" • ");
   }, [level, duration]);
 
-  const href = to ?? `/modules/workouts/${id}`;
+  const href = to ?? `/modules/workouts/${id}/execute`;
 
   return (
     <Link

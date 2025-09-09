@@ -1,0 +1,9 @@
+{
+  "chunks": [
+    "chunk-000.json",
+    "chunk-001.json",
+    "chunk-002.json",
+    "chunk-003.json"
+  ],
+  "manifest": "manifest.json"
+}

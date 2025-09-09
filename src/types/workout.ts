@@ -27,7 +27,7 @@ export type WorkoutExercise = {
   block_id: string;
   sequence: number;
   display_name: string;
-  exercise_ref?: string;
+  exercise_id?: string;
   target_sets?: number | null;
   target_reps?: number | null;
   target_time_seconds?: number | null;
