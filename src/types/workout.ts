@@ -27,7 +27,7 @@ export type WorkoutExercise = {
   block_id: string;
   sequence: number;
   display_name: string;
-  exercise_id?: string;
+  exercise_ref?: string | null;  // De exercise reference ID (niet UUID)
   target_sets?: number | null;
   target_reps?: number | null;
   target_time_seconds?: number | null;
@@ -56,6 +56,7 @@ export type UserWorkoutSession = {
   completed_at?: string | null;
   duration_sec?: number | null;
   workout_title?: string | null;
+  exercise_id?: string | null;
 };
 
 /** Alias die soms in code gebruikt wordt */

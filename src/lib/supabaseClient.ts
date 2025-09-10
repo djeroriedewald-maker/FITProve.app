@@ -1,25 +1,49 @@
 // src/lib/supabaseClient.ts
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../types/database.types';
 
-const url = import.meta.env.VITE_SUPABASE_URL;
-const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Controleer omgevingsvariabelen
+const checkEnvVariables = () => {
+  const url = process.env.VITE_SUPABASE_URL;
+  const anon = process.env.VITE_SUPABASE_ANON_KEY;
 
-if (!url || !anon) {
-  throw new Error(
-    'Supabase URL en ANON key zijn vereist. Controleer of je .env bestand correct is ingesteld.'
-  );
-}
+  if (!url || url === 'undefined') {
+    console.error('VITE_SUPABASE_URL is niet correct geconfigureerd');
+    return null;
+  }
+  if (!anon || anon === 'undefined') {
+    console.error('VITE_SUPABASE_ANON_KEY is niet correct geconfigureerd');
+    return null;
+  }
+
+  return { url, anon };
+};
+
+const { url, anon } = checkEnvVariables();
 
 /**
- * Eén gedeelde Supabase client (v2).
- * - Sessies blijven behouden
- * - Auto-refresh tokens
- * - OAuth redirects worden opgevangen
+ * Gedeelde Supabase client instance met type safety.
+ * - Sessies blijven behouden in localStorage
+ * - Tokens worden automatisch ververst
+ * - OAuth redirects worden correct afgehandeld
  */
-export const supabase = createClient(url, anon, {
+export const supabase: SupabaseClient<Database> = createClient(url, anon, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
   },
+  db: {
+    schema: 'public'
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'fitprove-app'
+    }
+  }
+});
+
+// Test de connectie
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('Supabase auth event:', event, session?.user?.email ?? 'No user');
 });

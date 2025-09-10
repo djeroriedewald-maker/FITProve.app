@@ -5,13 +5,9 @@ import SignInDialog from "@/components/auth/SignInDialog";
 import WorkoutLogger from "@/components/workouts/WorkoutLogger";
 import { loadAllExercises } from "@/workout-sources";
 
-import {
-  getWorkoutFull,
-  startSession,
-  completeSession as completeSessionApi,
-  listSessionSets,
-  addOrUpdateSet,
-} from "@/lib/workouts-client";
+import { getWorkoutFull } from "@/lib/workouts-client";
+import { addOrUpdateSet, completeSession, listSessionSets } from "@/lib/workouts/logs";
+import { supabase } from "@/lib/supabaseClient";
 
 import type {
   Workout,
@@ -112,29 +108,20 @@ export default function ProgramDetail() {
   async function onStart() {
     try {
       if (!id) return;
-      try {
-        const s = await startSession(id);
-        setSession(s);
-        setInfo(null);
-      } catch (e: any) {
-        const msg = String(e?.message || "");
-        if (/not authenticated/i.test(msg) || /auth/i.test(msg)) {
-          const local: UserWorkoutSession = {
-            id: `local_${Date.now()}`,
-            workout_id: id!,
-            user_id: "local",
-            status: "active",
-            started_at: new Date().toISOString(),
-            completed_at: null,
-            duration_sec: null,
-            workout_title: workout?.title ?? null,
-          } as any;
-          setSession(local);
-          setInfo("Niet ingelogd: we slaan je sessie lokaal op. Log in om je voortgang te bewaren in je account.");
-        } else {
-          throw e;
-        }
-      }
+      // TODO: Implementeer startSession via logs.ts indien gewenst
+      // Tijdelijk fallback naar lokale sessie
+      const local: UserWorkoutSession = {
+        id: `local_${Date.now()}`,
+        workout_id: id!,
+        user_id: "local",
+        status: "active",
+        started_at: new Date().toISOString(),
+        completed_at: null,
+        duration_sec: null,
+        workout_title: workout?.title ?? null,
+      } as any;
+      setSession(local);
+      setInfo("Niet ingelogd: we slaan je sessie lokaal op. Log in om je voortgang te bewaren in je account.");
       try { window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }); } catch {}
     } catch (e: any) {
       setError(e?.message ?? "Kon sessie niet starten.");
@@ -237,7 +224,8 @@ export default function ProgramDetail() {
     const idx = arr.findIndex((r) => `${r.exercise_id}:${r.set_index}` === key);
     const row: ExistingSet = {
       session_id: sid,
-      exercise_id: String(payload.exercise_id || payload.workout_exercise_id || ""),
+      exercise_id: payload.exercise_id ? String(payload.exercise_id).replace(/[^a-zA-Z0-9-]/g, '') : '',
+      // Ensure exercise_id is sanitized and compatible
       set_index: payload.set_index,
       reps: payload.reps ?? null,
       weight_kg: payload.weight_kg ?? null,
@@ -258,6 +246,21 @@ export default function ProgramDetail() {
     setSession(out);
     return out;
   }
+
+  const validateUUID = (id: string): string | null => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(id) ? id : null;
+  };
+
+  useEffect(() => {
+    if (session?.exercise_id) {
+      const validExerciseId = validateUUID(session.exercise_id);
+      if (!validExerciseId) {
+        setError("Invalid exercise ID format.");
+        return;
+      }
+    }
+  }, [session]);
 
   if (loading) {
     return (<div className="max-w-3xl mx-auto px-4 py-6"><div className="h-24 rounded-2xl bg-muted/40 animate-pulse" /></div>);
@@ -349,16 +352,21 @@ export default function ProgramDetail() {
               if (!payload.exercise_id || typeof payload.set_index !== 'number') {
                 throw new Error('Invalid set data');
               }
-              return addOrUpdateSet(
-                session.id,
-                payload.exercise_id,
-                payload.set_index,
-                payload
-              );
+      return addOrUpdateSet(supabase, {
+        session_id: session.id,
+        exercise_id: String(payload.exercise_id),
+        set_index: payload.set_index,
+        reps: payload.reps,
+        weight_kg: payload.weight_kg,
+        time_sec: payload.time_seconds,
+        rpe: payload.rpe,
+        completed: payload.completed,
+        notes: payload.notes,
+      });
             }}
             loadSets={async (sid: string): Promise<ExistingSet[]> => {
               if (sid.startsWith('local_')) return listSetsLocal(sid);
-              const rows = await listSessionSets(sid as string);
+              const rows = await listSessionSets(supabase, sid as string);
               return (rows ?? [])
                 .filter((r: any) => typeof r?.exercise_id === "string")
                 .map((r: any) => ({
@@ -378,9 +386,9 @@ export default function ProgramDetail() {
               const started = new Date(session!.started_at).getTime();
               const now = Date.now();
               const dur = Math.max(0, Math.floor((now - started) / 1000));
-              const s = await completeSessionApi(sid, dur);
-              setSession(s);
-              return s;
+              await completeSession(supabase, sid, dur);
+              setSession({ ...session!, status: "completed", completed_at: new Date().toISOString(), duration_sec: dur });
+              return { ...session!, status: "completed", completed_at: new Date().toISOString(), duration_sec: dur };
             }}
             onCompleted={(s) => setSession(s)}
           />

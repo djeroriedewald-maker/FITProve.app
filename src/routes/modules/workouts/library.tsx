@@ -32,25 +32,32 @@ export default function WorkoutLibraryPage() {
   // Load workouts when filters change or auth state updates
   useEffect(() => {
     let mounted = true;
-
-    // Don't load workouts if we're still checking auth
-    if (authLoading) return;
-
-    // Don't load workouts if user is not logged in
-    if (!user) {
-      setErr("Log in om workouts te bekijken");
-      return;
-    }
+    let allWorkouts: any[] | undefined;
 
     const loadWorkouts = async () => {
       if (!mounted) return;
 
-      setLoading(true);
-      setErr(null);
-      setWorkouts([]);
-      setStyleMap(new Map());
-
       try {
+        if (authLoading) {
+          console.log('[WorkoutLibrary] Still checking auth...');
+          return;
+        }
+
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          throw new Error('Er is een probleem met je sessie. Probeer opnieuw in te loggen.');
+        }
+
+        if (!session || !session.user) {
+          throw new Error('Je moet ingelogd zijn om workouts te bekijken.');
+        }
+
+        setLoading(true);
+        setErr(null); // Reset any previous errors
+        setWorkouts([]);
+        setStyleMap(new Map());
+
         console.log('[WorkoutLibrary] Loading workouts with filters:', wf);
 
         let data = await listWorkouts({
@@ -64,12 +71,11 @@ export default function WorkoutLibraryPage() {
         });
 
         // Fallback: als Supabase geen data geeft, laad uit statische JSON
-        let all: any[] | undefined = undefined;
         if (!Array.isArray(data) || data.length === 0) {
           console.warn('[WorkoutLibrary] Geen workouts uit Supabase, probeer fallback naar statische JSON');
-          all = await loadAllWorkouts<any>();
+          allWorkouts = await loadAllWorkouts<any>();
           // Map JSON naar WorkoutT
-          data = all.map((w: any) => ({
+          data = allWorkouts.map((w: any) => ({
             id: w.id,
             title: w.title,
             description: w.description || null,
@@ -93,16 +99,18 @@ export default function WorkoutLibraryPage() {
         let ids = data.map((w: any) => w.id);
         let map = new Map<string, string>();
         let blocks: any[] = [];
+
         // Probeer uit Supabase
         const { data: sbBlocks, error: blockError } = await supabase
           .from('workout_blocks')
           .select('workout_id, title')
           .in('workout_id', ids);
+
         if (!blockError && Array.isArray(sbBlocks)) {
           blocks = sbBlocks;
-        } else if (all) {
+        } else if (allWorkouts) {
           // Fallback: probeer blocks uit JSON
-          for (const w of all) {
+          for (const w of allWorkouts) {
             if (Array.isArray(w.blocks)) {
               for (const b of w.blocks) {
                 if (b && b.style) {
@@ -112,6 +120,7 @@ export default function WorkoutLibraryPage() {
             }
           }
         }
+
         if (blocks.length) {
           const prefer = (title?: string | null): string => {
             if (!title) return '';
@@ -126,12 +135,20 @@ export default function WorkoutLibraryPage() {
             }
           });
         }
+
+        if (!mounted) return;
         setStyleMap(map);
       } catch (e: any) {
         console.error('[WorkoutLibrary] Error:', e);
-        setErr(e?.message || 'Kon workouts niet laden');
+        if (mounted) {
+          setErr(e?.message || 'Kon workouts niet laden');
+          setWorkouts([]); // Reset workouts on error
+          setStyleMap(new Map()); // Reset style map on error
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -158,10 +175,12 @@ export default function WorkoutLibraryPage() {
           setThumbs(list);
         } else {
           console.warn('[WorkoutLibrary] No thumbnails loaded');
+          // Just set empty array but don't show error for no thumbnails
+          setThumbs([]);
         }
       } catch (e) {
         console.error('[WorkoutLibrary] Failed to load thumbnails:', e);
-        setErr('Kon thumbnails niet laden');
+        // Thumbnail errors are non-critical, just log and continue
         setThumbs([]);
       }
     }

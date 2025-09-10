@@ -69,15 +69,18 @@ export default function ExecuteWorkout() {
 
   return (
     <div className="max-w-3xl mx-auto py-4">
-      <WorkoutFlow 
-        workout={workout}
-        blocks={blocks}
-        exercises={exercises}
-      />
-    </div>
-  );
-        <button className="px-4 py-2 rounded-xl border border-neutral-700">Pauze</button>
-        <button className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700">Afronden</button>
+      <div>
+        <WorkoutFlow 
+          workout={workout}
+          blocks={blocks}
+          exercises={exercises}
+        />
+        <div className="mt-4 flex justify-end gap-4">
+          <div className="flex gap-4">
+            <button className="px-4 py-2 rounded-xl border border-neutral-700">Pauze</button>
+            <button className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700">Afronden</button>
+          </div>
+        </div>
       </div>
     </div>
   );

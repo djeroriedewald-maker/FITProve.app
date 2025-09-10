@@ -1,6 +1,11 @@
 // src/lib/workouts/logs.ts
 import { SupabaseClient } from '@supabase/supabase-js';
 
+const validateUUID = (id: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(id);
+};
+
 export type Session = {
   id: string;
   user_id: string;
@@ -63,8 +68,18 @@ export async function listSessionSets(sb: SupabaseClient, sessionId: string): Pr
 }
 
 export async function addOrUpdateSet(sb: SupabaseClient, payload: SetLog): Promise<SetLog> {
+  if (!validateUUID(payload.session_id)) {
+    throw new Error("Invalid session ID format");
+  }
+  if (!validateUUID(payload.exercise_id)) {
+    throw new Error("Invalid exercise ID format");
+  }
+  
   const { data, error } = await sb.from('set_logs').upsert(payload, { onConflict: 'session_id,exercise_id,set_index' }).select().single();
-  if (error) throw error;
+  if (error) {
+    console.error("[addOrUpdateSet] Database error:", error);
+    throw new Error("Error saving set: " + error.message);
+  }
   return data as SetLog;
 }
 
